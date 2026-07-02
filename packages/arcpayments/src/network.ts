@@ -1,4 +1,4 @@
-import { type Chain, createPublicClient, defineChain, http } from "viem";
+import { http, type Chain, createPublicClient, defineChain } from "viem";
 
 /** Resolved Arc network configuration. The single source of truth for endpoints. */
 export interface NetworkConfig {

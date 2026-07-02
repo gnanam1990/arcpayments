@@ -45,7 +45,10 @@ describe("defineArcChain", () => {
 
 describe("createArcPublicClient", () => {
   it("builds a viem client without throwing and targets the configured chain", () => {
-    const config = loadNetworkConfig({ ARC_RPC_URL: "https://rpc.example.test", ARC_CHAIN_ID: "9999" });
+    const config = loadNetworkConfig({
+      ARC_RPC_URL: "https://rpc.example.test",
+      ARC_CHAIN_ID: "9999",
+    });
     const client = createArcPublicClient(config);
     expect(client).toBeDefined();
     expect(client.chain?.id).toBe(9999);

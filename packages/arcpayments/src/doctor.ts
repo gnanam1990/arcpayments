@@ -1,4 +1,9 @@
-import { type NetworkConfig, type NetworkEnv, createArcPublicClient, loadNetworkConfig } from "./network";
+import {
+  type NetworkConfig,
+  type NetworkEnv,
+  createArcPublicClient,
+  loadNetworkConfig,
+} from "./network";
 
 export type CheckStatus = "pass" | "warn" | "fail";
 
@@ -44,11 +49,19 @@ function runtimeCheck(runtime: RuntimeInfo, minNodeMajor: number): DoctorCheck {
 
   if (runtime.name === "node") {
     if (Number.isNaN(major)) {
-      return { name: "Runtime", status: "fail", detail: `could not parse Node version "${runtime.version}"` };
+      return {
+        name: "Runtime",
+        status: "fail",
+        detail: `could not parse Node version "${runtime.version}"`,
+      };
     }
     return major >= minNodeMajor
       ? { name: "Runtime", status: "pass", detail: `Node ${runtime.version} (>= ${minNodeMajor})` }
-      : { name: "Runtime", status: "fail", detail: `Node ${runtime.version} is below the required v${minNodeMajor}` };
+      : {
+          name: "Runtime",
+          status: "fail",
+          detail: `Node ${runtime.version} is below the required v${minNodeMajor}`,
+        };
   }
 
   // Bun (or another modern runtime) — accept and report the version.

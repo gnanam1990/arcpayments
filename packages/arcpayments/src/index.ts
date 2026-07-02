@@ -89,9 +89,14 @@ export {
 export {
   createGatewayBalanceReader,
   createGatewayDepositor,
+  describeGatewayError,
+  describeThrownError,
   type FacilitatorLike,
+  type FacilitatorResponse,
   GatewayBatchSettler,
   GatewaySettler,
+  type GatewayVerifyResult,
+  settlementOutcomeFrom,
 } from "./paywall-gateway";
 export {
   type DepositResult,

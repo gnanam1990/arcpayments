@@ -15,6 +15,12 @@
  * which settles on-chain. Prints the settlement tx hash + explorer link.
  *
  *   LIVE=1 BUYER_PRIVATE_KEY=0x… SELLER_ADDRESS=0x… bun run apps/metered-mcp/scripts/live-settle.ts
+ *
+ * PREFLIGHT: pass `--verify-only` (or VERIFY_ONLY=1) to sign ONE payment and call
+ * Gateway /verify, printing the RAW facilitator response — so you see exactly why a
+ * payment is rejected before settling a batch. No settlement is submitted.
+ *
+ *   LIVE=1 BUYER_PRIVATE_KEY=0x… bun run apps/metered-mcp/scripts/live-settle.ts --verify-only
  */
 import {
   GatewayBatchSettler,
@@ -50,9 +56,10 @@ async function main(): Promise<void> {
       ? LocalWallet.fromPrivateKey(process.env.SELLER_PRIVATE_KEY as Hex).getAddress()
       : buyer.getAddress())) as `0x${string}`;
 
-  const n = Number(process.env.LIVE_CALLS ?? "3");
+  const verifyOnly = process.argv.includes("--verify-only") || process.env.VERIFY_ONLY === "1";
+  const n = verifyOnly ? 1 : Number(process.env.LIVE_CALLS ?? "3");
   process.stdout.write(
-    `live-settle: buyer ${buyer.getAddress()} → seller ${sellerAddress}, ${n} calls @ ${PAID_TOOL_PRICE} on ${net.caip2}\n`,
+    `live-settle${verifyOnly ? " (verify-only)" : ""}: buyer ${buyer.getAddress()} → seller ${sellerAddress}, ${n} call(s) @ ${PAID_TOOL_PRICE} on ${net.caip2}\n`,
   );
 
   // Seller side (in-process): guard with the confirmed Gateway domain + a queue.
@@ -86,11 +93,27 @@ async function main(): Promise<void> {
     maxTotalSpend: BigInt(n) * 10_000n,
   });
   process.stdout.write(
-    `live-settle: loop made ${loop.calls} paid calls (stoppedBy=${loop.stoppedBy})\n`,
+    `live-settle: loop made ${loop.calls} paid call(s) (stoppedBy=${loop.stoppedBy})\n`,
   );
 
-  // 2) Settle ONE batch on-chain via Circle Gateway.
   const settler = GatewayBatchSettler.create({ gatewayUrl: net.gatewayUrl });
+
+  // PREFLIGHT: verify the first signed payment against Gateway and print the raw response.
+  if (verifyOnly) {
+    const first = queue.pending()[0];
+    if (!first) {
+      process.stdout.write("live-settle: nothing to verify.\n");
+      return;
+    }
+    const result = await settler.verify(first);
+    process.stdout.write(`live-settle: /verify isValid=${result.ok}\n`);
+    process.stdout.write(
+      `live-settle: raw /verify response: ${JSON.stringify(result.raw ?? { error: result.error }, null, 2)}\n`,
+    );
+    return;
+  }
+
+  // 2) Settle ONE batch on-chain via Circle Gateway.
   const outcome = await flushBatch(queue, settler);
 
   if (!outcome) {
@@ -100,8 +123,9 @@ async function main(): Promise<void> {
   process.stdout.write(
     `live-settle: settled ${outcome.settled.length}, failed ${outcome.failed.length}\n`,
   );
-  if (outcome.failed.length > 0) {
-    process.stdout.write(`live-settle: failures: ${JSON.stringify(outcome.failed)}\n`);
+  // Print the FULL Gateway error for each failed payment — not a generic message.
+  for (const failure of outcome.failed) {
+    process.stdout.write(`live-settle: FAILED ${failure.id}: ${failure.error}\n`);
   }
   if (outcome.transaction) {
     process.stdout.write(`live-settle: SETTLEMENT TX ${outcome.transaction}\n`);

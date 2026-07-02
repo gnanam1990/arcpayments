@@ -350,3 +350,34 @@ export function createSettlementResolver(opts: {
     },
   };
 }
+
+/**
+ * Read-only Gateway inspector — exposes the **raw** SDK responses (no trimming) for
+ * diagnostics: full balances (bigint sub-fields), transfer search, and single
+ * transfer lookup. Uses the same `GatewayClient`. On-chain/API — never in CI.
+ */
+export interface GatewayInspector {
+  /** Raw `getBalances(address)` — full wallet + gateway buckets (bigints + formatted). */
+  balances(address?: string): Promise<unknown>;
+  /** Raw `searchTransfers(params)`. */
+  transfers(params?: Record<string, unknown>): Promise<unknown>;
+  /** Raw `getTransferById(id)`. */
+  transfer(id: string): Promise<unknown>;
+}
+
+export function createGatewayInspector(opts: {
+  privateKey: `0x${string}`;
+  chain: string;
+  rpcUrl?: string;
+}): GatewayInspector {
+  const client = new GatewayClient({
+    chain: opts.chain as never,
+    privateKey: opts.privateKey,
+    ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+  });
+  return {
+    balances: (address) => client.getBalances(address as never),
+    transfers: (params) => client.searchTransfers((params ?? {}) as never),
+    transfer: (id) => client.getTransferById(id),
+  };
+}

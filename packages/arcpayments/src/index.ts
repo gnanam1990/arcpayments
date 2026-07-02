@@ -95,6 +95,8 @@ export {
   createGatewayBalanceReader,
   createGatewayDepositor,
   createSettlementResolver,
+  createGatewayInspector,
+  type GatewayInspector,
   describeGatewayError,
   describeThrownError,
   type FacilitatorLike,

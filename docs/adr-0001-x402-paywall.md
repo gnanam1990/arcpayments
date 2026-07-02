@@ -207,6 +207,13 @@ signature (they are transport metadata), so the confirmed signing/domain logic i
 `--verify-only` preflight (`live-settle.ts`) calls Gateway `/verify` and confirms `isValid` before any
 batch settle.
 
+**Authorization validity window (also API-enforced).** Gateway rejects an authorization whose forward
+window is under `minValidity + buffer` with `invalidReason: "authorization_validity_too_short"`.
+Confirmed SDK constants (`@circle-fin/x402-batching` dist): `GATEWAY_MIN_AUTH_VALIDITY_SECONDS =
+604800` (7d, = `/supported` `minValiditySeconds`), `+ 100s` buffer, and `validAfter` is backdated
+`now − 600`. `signExactPayment` mirrors this: `validAfter = now − 600`,
+`validBefore = now + max(maxTimeoutSeconds, 604900)`. Preflight confirmed `isValid: true` on Arc testnet.
+
 ## Consequences
 
 - ✅ Satisfies "verify locally + batch settlement, never broadcast per call" using the real,

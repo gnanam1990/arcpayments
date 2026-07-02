@@ -157,6 +157,19 @@ function domainFor(requirements: PaymentRequirements) {
 /** x402 protocol version used in signed payloads (Circle Gateway batched = 2). */
 export const X402_VERSION = 2;
 
+/**
+ * Gateway authorization-validity constants (values confirmed from
+ * `@circle-fin/x402-batching` dist — NOT guessed). Gateway rejects an
+ * authorization whose forward window is under `minValidity + buffer`
+ * (`authorization_validity_too_short`), and the SDK backdates `validAfter` so the
+ * authorization is already active when Gateway processes it.
+ */
+export const GATEWAY_MIN_AUTH_VALIDITY_SECONDS = 7 * 24 * 60 * 60; // 604800 (matches /supported)
+export const GATEWAY_AUTH_VALIDITY_BUFFER_SECONDS = 100;
+export const GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS =
+  GATEWAY_MIN_AUTH_VALIDITY_SECONDS + GATEWAY_AUTH_VALIDITY_BUFFER_SECONDS; // 604900
+export const GATEWAY_AUTH_BACKDATE_SECONDS = 600;
+
 /** Options for signing a payment (used by the buyer agent + minimal test payer). */
 export interface SignExactOptions {
   nonce: Hex;
@@ -183,8 +196,13 @@ export async function signExactPayment(
     throw new Error("signer account cannot sign typed data (needs a local/private-key account)");
   }
   const now = options.now ?? Math.floor(Date.now() / 1000);
-  const validAfter = String(options.validAfter ?? 0);
-  const validBefore = String(options.validBefore ?? now + requirements.maxTimeoutSeconds);
+  // Backdate validAfter and clamp the forward window to Gateway's minimum + buffer,
+  // matching the SDK — otherwise Gateway returns `authorization_validity_too_short`.
+  const validAfter = String(options.validAfter ?? now - GATEWAY_AUTH_BACKDATE_SECONDS);
+  const validBefore = String(
+    options.validBefore ??
+      now + Math.max(requirements.maxTimeoutSeconds, GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS),
+  );
   const authorization: Eip3009Authorization = {
     from: getAddress(account.address),
     to: getAddress(requirements.payTo),

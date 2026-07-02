@@ -37,7 +37,7 @@ import {
   startPaymentLoop,
 } from "arcpayments";
 import type { Hex } from "viem";
-import { PAID_TOOL_PRICE } from "../src/server";
+import { PAID_TOOL_PRICE, PAID_TOOL_RESOURCE } from "../src/server";
 
 async function main(): Promise<void> {
   const live = process.env.LIVE === "1";
@@ -77,6 +77,7 @@ async function main(): Promise<void> {
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,
+    resource: PAID_TOOL_RESOURCE,
   });
   const transport = guardTransport(guard, async () => "PREMIUM-RESULT");
 

@@ -73,6 +73,16 @@ describe("signExactPayment — Gateway-required payload fields", () => {
     const payment = await pay(requirements(), { nonce: nonce("a3"), now: 1000 });
     expect(payment.resource).toBeUndefined();
   });
+
+  it("signs a validity window Gateway accepts (>= 7d + buffer, backdated validAfter)", async () => {
+    const now = 1_000_000;
+    const payment = await pay(requirements(), { nonce: nonce("a4"), now });
+    const { validAfter, validBefore } = payment.payload.authorization;
+    // backdated so the auth is already active when Gateway processes it
+    expect(Number(validAfter)).toBe(now - 600);
+    // forward window >= 604800 (7d) + 100 buffer
+    expect(Number(validBefore) - now).toBeGreaterThanOrEqual(604800 + 100);
+  });
 });
 
 describe("priceToBaseUnits (6-decimal USDC ERC-20 path)", () => {

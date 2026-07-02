@@ -1,0 +1,25 @@
+{
+  "name": "arcpayments-monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Agentic-commerce tooling for Arc — monorepo root (not published).",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p packages/arcpayments/tsconfig.json && tsc --noEmit -p apps/metered-mcp/tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "build": "bun run --filter '*' build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "metered-mcp",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Showcase app (customer zero): a metered MCP tool server where an AI agent pays sub-cent USDC on Arc per tool call. Placeholder until Stage 1.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "echo \"metered-mcp: placeholder — real build lands in Stage 1\""
+  }
+}

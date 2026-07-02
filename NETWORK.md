@@ -73,6 +73,37 @@ For the paywall (ADR-0001). All read from env / the `network` module in code —
 **x402 uses the 6-decimal ERC-20 USDC path — NOT the 18-decimal native/gas scale.** Use
 `USDC_ERC20_DECIMALS` (6) for all x402 amounts; `ARC_NATIVE_GAS_DECIMALS` (18) is gas-only.
 
+## Gateway settlement: cadence, no manual flush, status→spendable (Stage 4/5)
+
+Investigated for confirming that x402 "settled" actually lands on-chain (sources cited).
+
+**1. Batch-to-chain cadence + manual flush.** Circle Gateway **accepts** a payment instantly
+(off-chain ledger) and does the **on-chain batch settlement "periodically in the background"** —
+exact cadence is **not published** by Circle. There is **no developer-facing flush/trigger** for
+the receive-side x402 batch: the full `GatewayClient` method surface
+(`@circle-fin/x402-batching/dist/client`) has `deposit/pay/withdraw/transfer/getBalances/
+getTransferById/searchTransfers/…` but **no `flush`/`settle`/`forceSettle`**. The only on-chain
+calls a developer makes move funds **out** of Gateway: `withdraw()` / `transfer()` (documented as
+an **"instant transfer"**, returns a `mintTxHash`) — that is Stage 5, not the receive batch.
+Sources: <https://www.circle.com/blog/circle-nanopayments-launches-on-testnet-as-the-core-primitive-for-agentic-economic-activity>
+("adjusts the internal ledger balance, provides instant confirmation to the merchant … the actual
+onchain settlement occurs periodically in the background"); Gateway "batch within hundreds of ms"
++ "<500 ms transfers" — <https://www.circle.com/gateway>, <https://www.circle.com/blog/nanopayments-powered-by-circle-gateway-is-now-live-on-mainnet>.
+
+**2. Transfer status lifecycle** (SDK `TransferStatus`): `received → batched → confirmed →
+completed` (or `failed`). `received` = signature verified + recipient's **unified balance credited**
+(off-chain, instant); `batched` = bundled into a Gateway batch awaiting on-chain settlement;
+`completed` = **on-chain batch settlement done**. "settled" from our `flushBatch` means **Gateway
+ACCEPTED** (verified + queued) — NOT on-chain finality. Observed live (read-only): fresh transfers sit
+at `received`; the transfer object exposes no tx-hash until later.
+
+**3. Spendable/withdrawable → for Stage 5, gate on the BALANCE, not the transfer status.** The SDK
+`GatewayBalance` fields are authoritative: `available` = *"can be used"* (spend/pay within Gateway),
+`withdrawable` = *"ready to be withdrawn"* to a wallet on-chain, `withdrawing` = in progress. The
+recipient's unified balance credits ~instantly on acceptance, so **Stage 5 should read
+`getBalances().gateway.available` / `withdrawable` and withdraw when `> 0`** rather than coupling to a
+transfer status. Source: `@circle-fin/x402-batching/dist/client/index.d.ts` (`GatewayBalance` field docs).
+
 ## x402 signing domain — verified Stage 4 (2026-07-02) ⚠️ CORRECTS Stage 3 defaults
 
 Confirmed from the **live** Gateway `/supported` response and the SDK client

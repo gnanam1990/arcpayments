@@ -21,12 +21,18 @@ import type {
  * this adapter is only the (network) settlement leg.
  */
 
-/** x402 PaymentPayload shape the Gateway facilitator expects (mirrors the SDK). */
+/**
+ * x402 PaymentPayload shape the Gateway facilitator expects (mirrors the SDK).
+ * `resource` + `accepted` are API-required by Gateway `/verify` + `/settle`
+ * (see ADR-0001); the SDK sends them as top-level siblings of `payload`.
+ */
 interface SdkPaymentPayload {
   x402Version: number;
   scheme: string;
   network: string;
   payload: Record<string, unknown>;
+  resource?: Record<string, unknown>;
+  accepted?: Record<string, unknown>;
 }
 
 /** x402 PaymentRequirements shape the Gateway facilitator expects (mirrors the SDK). */
@@ -61,6 +67,13 @@ function toSdkPayload(payment: ExactPaymentPayload): SdkPaymentPayload {
     scheme: payment.scheme,
     network: payment.network,
     payload: payment.payload as unknown as Record<string, unknown>,
+    // Gateway-required (SDK-optional) metadata — see ADR-0001.
+    ...(payment.resource
+      ? { resource: payment.resource as unknown as Record<string, unknown> }
+      : {}),
+    ...(payment.accepted
+      ? { accepted: payment.accepted as unknown as Record<string, unknown> }
+      : {}),
   };
 }
 

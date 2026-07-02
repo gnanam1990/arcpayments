@@ -6,6 +6,7 @@ import {
   LocalExactVerifier,
   type PaymentRequirements,
   PaywallGuard,
+  type ResourceInfo,
   type SettlementQueue,
   USDC_ERC20_DECIMALS,
   buildPaymentRequirements,
@@ -24,6 +25,17 @@ export const SERVER_INFO = {
 /** The paid tool's name and price (not a magic number inline). */
 export const PAID_TOOL_NAME = "premium_echo";
 export const PAID_TOOL_PRICE = "$0.001";
+
+/**
+ * The x402 `resource` this tool sells. Circle Gateway requires it on the payload
+ * (see ADR-0001); the SDK middleware uses `{ url: <path>, description, mimeType }`,
+ * so we mirror that shape.
+ */
+export const PAID_TOOL_RESOURCE: ResourceInfo = {
+  url: `/${PAID_TOOL_NAME}`,
+  description: "Premium echo — a paid metered-mcp tool",
+  mimeType: "application/json",
+};
 
 /** Everything the server needs to gate + settle the paid tool. */
 export interface SellerPaywall {
@@ -59,6 +71,7 @@ export function buildSellerPaywall(
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,
+    resource: PAID_TOOL_RESOURCE,
   });
   return { guard, queue, sellerAddress };
 }
@@ -73,6 +86,7 @@ export interface CreateServerOptions {
 function challenge(
   kind: "PAYMENT_REQUIRED" | "PAYMENT_INVALID",
   requirements: PaymentRequirements,
+  resource: ResourceInfo | undefined,
   reason?: string,
 ) {
   return {
@@ -81,9 +95,11 @@ function challenge(
       {
         type: "text" as const,
         text: JSON.stringify({
-          x402Version: 1,
+          x402Version: 2,
           error: kind,
           ...(reason ? { reason } : {}),
+          // `resource` + `accepts` are what the buyer needs to build a Gateway-valid payload.
+          ...(resource ? { resource } : {}),
           accepts: [requirements],
         }),
       },
@@ -133,10 +149,15 @@ export function createServer(options: CreateServerOptions = {}): McpServer {
           async () => `PREMIUM: ${text.toUpperCase()}`,
         );
         if (outcome.status === "payment-required") {
-          return challenge("PAYMENT_REQUIRED", outcome.requirements);
+          return challenge("PAYMENT_REQUIRED", outcome.requirements, outcome.resource);
         }
         if (outcome.status === "rejected") {
-          return challenge("PAYMENT_INVALID", outcome.requirements, outcome.reason);
+          return challenge(
+            "PAYMENT_INVALID",
+            outcome.requirements,
+            outcome.resource,
+            outcome.reason,
+          );
         }
         return {
           content: [

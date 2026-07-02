@@ -38,12 +38,35 @@ export interface Eip3009Authorization {
   nonce: Hex;
 }
 
-/** x402 exact-EVM payment proof the buyer sends back with the retry. */
+/**
+ * The resource being paid for (x402 `ResourceInfo`). Circle Gateway `/verify` +
+ * `/settle` **require** this on the payload (SDK `server/index.mjs` builds it as
+ * `{ url, description, mimeType }`; it is `?`-optional in the SDK types but
+ * API-enforced — see ADR-0001).
+ */
+export interface ResourceInfo {
+  url: string;
+  description: string;
+  mimeType: string;
+}
+
+/**
+ * x402 exact-EVM payment proof the buyer sends back with the retry.
+ *
+ * `resource` + `accepted` are NOT signed (the EIP-712 signature covers only the
+ * authorization); they are metadata Gateway requires: `accepted` is the exact
+ * `PaymentRequirements` the buyer is satisfying, `resource` is echoed from the
+ * seller's challenge.
+ */
 export interface ExactPaymentPayload {
   x402Version: number;
   scheme: "exact";
   network: string;
   payload: { signature: Hex; authorization: Eip3009Authorization };
+  /** The resource being paid for (echoed from the challenge). */
+  resource?: ResourceInfo;
+  /** The PaymentRequirements the buyer is satisfying (= the challenge requirements). */
+  accepted?: PaymentRequirements;
 }
 
 /** x402 payment requirements — the challenge returned when payment is missing/invalid. */
@@ -142,6 +165,8 @@ export interface SignExactOptions {
   validBefore?: number;
   /** x402 protocol version to stamp on the payload. Defaults to {@link X402_VERSION}. */
   x402Version?: number;
+  /** The resource being paid for, echoed from the challenge (Gateway requires it). */
+  resource?: ResourceInfo;
 }
 
 /**
@@ -186,6 +211,10 @@ export async function signExactPayment(
     scheme: "exact",
     network: requirements.network,
     payload: { signature, authorization },
+    // Gateway-required metadata (not signed). `accepted` is exactly the requirements
+    // the buyer is satisfying; `resource` is echoed from the seller's challenge.
+    accepted: requirements,
+    ...(options.resource ? { resource: options.resource } : {}),
   };
 }
 
@@ -404,14 +433,21 @@ export interface PaywallGuardConfig {
   requirements: PaymentRequirements;
   verifier: PaymentVerifier;
   queue: SettlementQueue;
+  /** The resource being sold — echoed to the buyer in the challenge (Gateway requires it). */
+  resource?: ResourceInfo;
   /** Clock (unix seconds). Injectable for deterministic tests. */
   now?: () => number;
 }
 
 /** What the guard decided for one call. */
 export type GuardOutcome<T> =
-  | { status: "payment-required"; requirements: PaymentRequirements }
-  | { status: "rejected"; reason: string; requirements: PaymentRequirements }
+  | { status: "payment-required"; requirements: PaymentRequirements; resource?: ResourceInfo }
+  | {
+      status: "rejected";
+      reason: string;
+      requirements: PaymentRequirements;
+      resource?: ResourceInfo;
+    }
   | { status: "ok"; result: T; settlement: SettlementRecord };
 
 /**
@@ -427,17 +463,28 @@ export class PaywallGuard {
     return this.config.requirements;
   }
 
+  /** The resource this guard sells (echoed to the buyer in the challenge). */
+  get resource(): ResourceInfo | undefined {
+    return this.config.resource;
+  }
+
   async guard<T>(
     payment: ExactPaymentPayload | undefined,
     run: () => Promise<T>,
   ): Promise<GuardOutcome<T>> {
+    const { requirements, resource } = this.config;
     if (!payment) {
-      return { status: "payment-required", requirements: this.config.requirements };
+      return { status: "payment-required", requirements, ...(resource ? { resource } : {}) };
     }
     const now = (this.config.now ?? (() => Math.floor(Date.now() / 1000)))();
-    const verdict = await this.config.verifier.verify(payment, this.config.requirements, now);
+    const verdict = await this.config.verifier.verify(payment, requirements, now);
     if (!verdict.ok) {
-      return { status: "rejected", reason: verdict.reason, requirements: this.config.requirements };
+      return {
+        status: "rejected",
+        reason: verdict.reason,
+        requirements,
+        ...(resource ? { resource } : {}),
+      };
     }
     const result = await run();
     const settlement = this.config.queue.enqueue({

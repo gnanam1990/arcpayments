@@ -76,6 +76,7 @@ export {
   PaywallGuard,
   type PaywallGuardConfig,
   priceToBaseUnits,
+  type ResourceInfo,
   type SettlementInput,
   type SettlementOutcome,
   type SettlementQueue,

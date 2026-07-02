@@ -47,6 +47,34 @@ async function pay(
   return signExactPayment(buyer, reqs, opts);
 }
 
+describe("signExactPayment — Gateway-required payload fields", () => {
+  it("sets `accepted` to exactly the requirements being satisfied", async () => {
+    const reqs = requirements();
+    const payment = await pay(reqs, { nonce: nonce("a1"), now: 1000 });
+    expect(payment.accepted).toEqual(reqs);
+  });
+
+  it("echoes the `resource` from the challenge when provided", async () => {
+    const reqs = requirements();
+    const resource = {
+      url: "/premium_echo",
+      description: "paid tool",
+      mimeType: "application/json",
+    };
+    const payment = await signExactPayment(buyer, reqs, {
+      nonce: nonce("a2"),
+      now: 1000,
+      resource,
+    });
+    expect(payment.resource).toEqual(resource);
+  });
+
+  it("omits `resource` when the challenge did not carry one", async () => {
+    const payment = await pay(requirements(), { nonce: nonce("a3"), now: 1000 });
+    expect(payment.resource).toBeUndefined();
+  });
+});
+
 describe("priceToBaseUnits (6-decimal USDC ERC-20 path)", () => {
   it("serializes $0.001 to 1000 base units", () => {
     expect(priceToBaseUnits("$0.001", 6)).toBe(1000n);

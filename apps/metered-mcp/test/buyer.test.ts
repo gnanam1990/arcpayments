@@ -40,6 +40,7 @@ function makePaywall(): SellerPaywall {
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,
+    resource: { url: "/premium_echo", description: "paid", mimeType: "application/json" },
   });
   return { guard, queue, sellerAddress: seller.getAddress() };
 }
@@ -66,6 +67,9 @@ describe("metered-mcp buyer agent (over the MCP transport)", () => {
     expect(String(result.content)).toContain("HELLO");
     expect(paywall.queue.pending()).toHaveLength(1);
     expect(paywall.queue.pending()[0]?.payer).toBe(buyer.getAddress());
+    // Gateway-required fields threaded end-to-end over the MCP transport.
+    expect(paywall.queue.pending()[0]?.payment.resource?.url).toBe("/premium_echo");
+    expect(paywall.queue.pending()[0]?.payment.accepted?.amount).toBe("1000");
 
     await client.close();
     await server.close();

@@ -164,6 +164,24 @@ describe("GatewayBatchSettler", () => {
     expect(outcome.failed[0]?.error).toMatch(/NO_FUNDS/);
   });
 
+  it("forwards the Gateway-required resource + accepted onto the settle payload", async () => {
+    let sentPayload: Record<string, unknown> | undefined;
+    const settler = new GatewayBatchSettler({
+      settle: async (payload) => {
+        sentPayload = payload as unknown as Record<string, unknown>;
+        return { success: true, transaction: "0xTX" };
+      },
+      verify: async () => ({ isValid: true }),
+    });
+    const rec = record("0x00000000000000000000000000000000000000A1");
+    const resource = { url: "/premium_echo", description: "paid", mimeType: "application/json" };
+    rec.payment = { ...rec.payment, resource, accepted: rec.requirements };
+
+    await settler.settleBatch([rec]);
+    expect(sentPayload?.resource).toEqual(resource);
+    expect(sentPayload?.accepted).toEqual(rec.requirements);
+  });
+
   it("verify() returns the raw /verify response (preflight)", async () => {
     const settler = new GatewayBatchSettler(
       fac(

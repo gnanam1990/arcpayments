@@ -3,6 +3,7 @@ import {
   type ExactPaymentPayload,
   type PaymentRequirements,
   type PaywallGuard,
+  type ResourceInfo,
   type SettlementQueue,
   type SettlementRecord,
   signExactPayment,
@@ -18,9 +19,14 @@ import type { Wallet } from "./wallet";
 
 /** What a paid-tool call returns: a challenge, the result, or a rejection. */
 export type PaidResponse =
-  | { kind: "challenge"; requirements: PaymentRequirements }
+  | { kind: "challenge"; requirements: PaymentRequirements; resource?: ResourceInfo }
   | { kind: "result"; content: unknown }
-  | { kind: "rejected"; reason: string; requirements: PaymentRequirements };
+  | {
+      kind: "rejected";
+      reason: string;
+      requirements: PaymentRequirements;
+      resource?: ResourceInfo;
+    };
 
 /** Seam for the paid-tool endpoint. `request()` with no proof yields the challenge. */
 export interface PaidToolTransport {
@@ -33,10 +39,19 @@ export function guardTransport<T>(guard: PaywallGuard, run: () => Promise<T>): P
     async request(payment) {
       const outcome = await guard.guard(payment, run);
       if (outcome.status === "payment-required") {
-        return { kind: "challenge", requirements: outcome.requirements };
+        return {
+          kind: "challenge",
+          requirements: outcome.requirements,
+          ...(outcome.resource ? { resource: outcome.resource } : {}),
+        };
       }
       if (outcome.status === "rejected") {
-        return { kind: "rejected", reason: outcome.reason, requirements: outcome.requirements };
+        return {
+          kind: "rejected",
+          reason: outcome.reason,
+          requirements: outcome.requirements,
+          ...(outcome.resource ? { resource: outcome.resource } : {}),
+        };
       }
       return { kind: "result", content: outcome.result };
     },
@@ -81,6 +96,7 @@ export async function payForCall(options: PayForCallOptions): Promise<PaidCallRe
   const payment = await signExactPayment(options.wallet.getAccount(), first.requirements, {
     nonce: options.nonce(),
     now,
+    ...(first.resource ? { resource: first.resource } : {}),
   });
 
   const second = await options.transport.request(payment);
@@ -161,6 +177,7 @@ export async function startPaymentLoop(
     const payment = await signExactPayment(options.wallet.getAccount(), peek.requirements, {
       nonce: options.nonce(),
       now,
+      ...(peek.resource ? { resource: peek.resource } : {}),
     });
     const res = await options.transport.request(payment);
     if (res.kind === "rejected") {

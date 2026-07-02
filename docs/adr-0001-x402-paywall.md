@@ -146,7 +146,7 @@ payment core**.
 **`ExactPaymentPayload`** (x402 exact-EVM standard; amounts are 6-dec USDC base-unit strings):
 ```jsonc
 {
-  "x402Version": 1,
+  "x402Version": 2,
   "scheme": "exact",
   "network": "eip155:5042002",
   "payload": {
@@ -157,15 +157,19 @@ payment core**.
       "validAfter": "0", "validBefore": "…",    // unix seconds (expiry window)
       "nonce": "0x…(32 bytes)"                  // single-use (replay protection)
     }
-  }
+  },
+  // Gateway-required metadata (NOT signed). See "Gateway-required fields" below.
+  "resource": { "url": "/premium_echo", "description": "…", "mimeType": "application/json" },
+  "accepted": <PaymentRequirements>            // the exact requirements this payment satisfies
 }
 ```
 
 **Challenge / rejection** — returned as an MCP tool result with `isError: true` and a
 single text content whose body is a JSON envelope (mirrors an HTTP-402 body with `accepts`):
 ```jsonc
-{ "x402Version": 1,
+{ "x402Version": 2,
   "error": "PAYMENT_REQUIRED",                  // or "PAYMENT_INVALID" (+ "reason")
+  "resource": { "url": "…", "description": "…", "mimeType": "application/json" },
   "accepts": [ <PaymentRequirements> ] }        // scheme/network/asset/amount/payTo/maxTimeoutSeconds/extra{name,version,verifyingContract}
 ```
 
@@ -177,6 +181,31 @@ Gateway): scheme+network match, `to == payTo`, `value ≥ amount`, `validAfter �
 (**expiry**), nonce is 32-byte and **unused (replay)**, and the EIP-3009 signature recovers to
 `authorization.from`. On success the nonce is consumed; settlement failures are surfaced by the
 queue, never dropped.
+
+### Gateway-required fields: `resource` + `accepted` (⚠️ SDK-type-optional, API-enforced)
+
+Circle Gateway's `POST /v1/x402/verify` and `/settle` **require** two fields on the payment payload
+that are typed `?`-optional in `@circle-fin/x402-batching` / `@x402/core` — an easy trap. Omitting
+them yields a generic-looking `400`:
+
+```
+Circle Gateway verify failed (400): {"success":false,
+  "message":"Invalid request: paymentPayload.resource: Required, paymentPayload.accepted: Required"}
+```
+
+Confirmed shapes (from the SDK source, not guessed):
+- **`accepted`** = the exact `PaymentRequirements` the buyer is satisfying — the SDK's `pay()` sends
+  `accepted: batchingOption` (the chosen entry from the challenge's `accepts[]`).
+  Source: `@circle-fin/x402-batching/dist/client/index.mjs` (`{ ...paymentPayload, resource, accepted }`).
+- **`resource`** = `{ url, description, mimeType }` (x402 `ResourceInfo`), echoed by the buyer from the
+  seller's challenge. The SDK middleware builds it as `{ url: <req.url>, description, mimeType:
+  "application/json" }`. Source: `@circle-fin/x402-batching/dist/server/index.mjs`.
+
+**Wire-format consequence (this stage):** the seller's challenge now carries a `resource`; the buyer
+echoes it and sets `accepted` = the requirements it signed. Neither is covered by the EIP-712
+signature (they are transport metadata), so the confirmed signing/domain logic is unchanged. A
+`--verify-only` preflight (`live-settle.ts`) calls Gateway `/verify` and confirms `isValid` before any
+batch settle.
 
 ## Consequences
 

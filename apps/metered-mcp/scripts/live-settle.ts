@@ -11,8 +11,11 @@
  *  - SELLER_ADDRESS (or SELLER_PRIVATE_KEY) is the payout identity.
  *
  * What it does: runs the buyer loop for a small N (buyer signs EIP-3009 locally,
- * seller verifies locally and queues), then flushes ONE batch to Circle Gateway,
- * which settles on-chain. Prints the settlement tx hash + explorer link.
+ * seller verifies locally and queues), then flushes ONE batch to Circle Gateway.
+ * Circle's `/settle` returns a settlement/transfer **UUID** (not an on-chain hash),
+ * so we resolve it via `getTransferById` to the real `0x…` tx hash and only then
+ * build the explorer link. Also prints buyer/seller Gateway balance deltas as
+ * independent proof of settlement.
  *
  *   LIVE=1 BUYER_PRIVATE_KEY=0x… SELLER_ADDRESS=0x… bun run apps/metered-mcp/scripts/live-settle.ts
  *
@@ -31,9 +34,12 @@ import {
   PaywallGuard,
   USDC_ERC20_DECIMALS,
   buildPaymentRequirements,
+  createGatewayBalanceReader,
+  createSettlementResolver,
   flushBatch,
   guardTransport,
   loadNetworkConfig,
+  resolveSettlementTxHash,
   startPaymentLoop,
 } from "arcpayments";
 import type { Hex } from "viem";
@@ -114,6 +120,15 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Independent proof of settlement: Gateway balances before → after.
+  const balances = createGatewayBalanceReader({
+    privateKey: buyerKey as Hex,
+    chain: net.gatewayChainName,
+    rpcUrl: net.rpcUrl,
+  });
+  const buyerBefore = (await balances.getBalances(buyer.getAddress())).gatewayAvailableFormatted;
+  const sellerBefore = (await balances.getBalances(sellerAddress)).gatewayTotalFormatted;
+
   // 2) Settle ONE batch on-chain via Circle Gateway.
   const outcome = await flushBatch(queue, settler);
 
@@ -128,10 +143,41 @@ async function main(): Promise<void> {
   for (const failure of outcome.failed) {
     process.stdout.write(`live-settle: FAILED ${failure.id}: ${failure.error}\n`);
   }
+
+  // 3) Resolve the settlement/transfer UUID → the REAL on-chain tx hash.
   if (outcome.transaction) {
-    process.stdout.write(`live-settle: SETTLEMENT TX ${outcome.transaction}\n`);
-    process.stdout.write(`live-settle: explorer ${net.explorerUrl}/tx/${outcome.transaction}\n`);
+    const settlementId = outcome.transaction;
+    process.stdout.write(`live-settle: Circle settlement/transfer ID: ${settlementId}\n`);
+    const resolver = createSettlementResolver({
+      privateKey: buyerKey as Hex,
+      chain: net.gatewayChainName,
+      rpcUrl: net.rpcUrl,
+    });
+    const info = await resolveSettlementTxHash(resolver, settlementId, {
+      attempts: 8,
+      delayMs: 3000,
+    });
+    if (info.txHash) {
+      process.stdout.write(
+        `live-settle: ON-CHAIN TX HASH ${info.txHash} (status=${info.status})\n`,
+      );
+      process.stdout.write(`live-settle: explorer ${net.explorerUrl}/tx/${info.txHash}\n`);
+    } else {
+      // No real 0x hash yet — do NOT build a fake /tx/<uuid> link.
+      process.stdout.write(
+        `live-settle: on-chain tx hash not ready — batch ID ${settlementId}, status=${info.status}. ` +
+          `Re-check later (getTransferById). Raw: ${JSON.stringify(info.raw)}\n`,
+      );
+    }
   }
+
+  // Balance deltas (independent proof money moved).
+  const buyerAfter = (await balances.getBalances(buyer.getAddress())).gatewayAvailableFormatted;
+  const sellerAfter = (await balances.getBalances(sellerAddress)).gatewayTotalFormatted;
+  process.stdout.write(
+    `live-settle: buyer Gateway available: ${buyerBefore} → ${buyerAfter} USDC\n` +
+      `live-settle: seller Gateway total:     ${sellerBefore} → ${sellerAfter} USDC\n`,
+  );
 }
 
 main().catch((err) => {

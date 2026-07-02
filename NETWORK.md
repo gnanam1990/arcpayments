@@ -73,6 +73,25 @@ For the paywall (ADR-0001). All read from env / the `network` module in code —
 **x402 uses the 6-decimal ERC-20 USDC path — NOT the 18-decimal native/gas scale.** Use
 `USDC_ERC20_DECIMALS` (6) for all x402 amounts; `ARC_NATIVE_GAS_DECIMALS` (18) is gas-only.
 
+## Settlement PROVEN on-chain (read-only verification, 2026-07-02)
+
+A live `live-settle` run of 3 × $0.001 (buyer `0x824c…` → seller `0xdA6b…`) was verified read-only
+(`getBalances` / `searchTransfers` / `getTransferById`; script `apps/metered-mcp/scripts/inspect-settlement.ts`):
+- **3 real transfers exist, all `status: "completed"`** (on-chain settled), `amount: "1000"` (=$0.001) each,
+  from buyer → seller, IDs resolve individually.
+- **Buyer debited exactly $0.003:** gateway `available` = `14997000` atomic = **14.997 USDC** = 15.000
+  deposited − 0.003 paid (this is the payment debit, NOT deposit rounding).
+- **Seller credited exactly $0.003:** gateway `total`/`available` = `3000` atomic = **0.003 USDC**.
+- **Async cadence observed:** `createdAt 17:29:33` → `updatedAt`(completed) `17:40:04` ≈ **~10.5 minutes**
+  from `received` → `completed`. This is why an immediate balance read right after flush shows 0.
+- **`completed` transfers still expose NO tx-hash field** (only id/status/token/networks/addresses/
+  amount/timestamps). So `getTransferById` never returns an on-chain hash; on-chain proof = `status:
+  completed` + balance delta. (The batch mint tx lives on the GatewayMinter `0x0022222…`, not attached
+  per-transfer by Circle's API.)
+- **⚠️ Stage 5 caveat:** received funds show `available` = 0.003 but **`withdrawable` = 0**. So a credited
+  balance is *spendable within Gateway* immediately, but **not necessarily withdrawable to a wallet** yet —
+  Stage 5 must gate `withdraw()` on `withdrawable > 0`, not `available`.
+
 ## Gateway settlement: cadence, no manual flush, status→spendable (Stage 4/5)
 
 Investigated for confirming that x402 "settled" actually lands on-chain (sources cited).

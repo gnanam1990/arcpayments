@@ -18,7 +18,7 @@ import { resolveSellerAddress } from "./identity";
 /** Server identity advertised to MCP clients. */
 export const SERVER_INFO = {
   name: "metered-mcp",
-  version: "0.3.0",
+  version: "0.4.0",
 } as const;
 
 /** The paid tool's name and price (not a magic number inline). */

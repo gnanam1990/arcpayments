@@ -13,6 +13,7 @@ export {
   type ArcPublicClient,
   createArcPublicClient,
   defineArcChain,
+  type Eip712TokenDomain,
   loadNetworkConfig,
   type NetworkConfig,
   type NetworkEnv,

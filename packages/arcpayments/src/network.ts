@@ -1,4 +1,10 @@
-import { http, type Chain, createPublicClient, defineChain } from "viem";
+import { type Address, http, type Chain, createPublicClient, defineChain, getAddress } from "viem";
+
+/** EIP-712 domain identity of a token (for signing/verifying EIP-3009 authorizations). */
+export interface Eip712TokenDomain {
+  name: string;
+  version: string;
+}
 
 /** Resolved Arc network configuration. The single source of truth for endpoints. */
 export interface NetworkConfig {
@@ -8,10 +14,22 @@ export interface NetworkConfig {
   rpcUrl: string;
   /** EVM chain ID. */
   chainId: number;
+  /** CAIP-2 chain id, e.g. "eip155:5042002" — used by x402 payment requirements. */
+  caip2: string;
   /** Block explorer base URL. */
   explorerUrl: string;
   /** Testnet faucet URL. */
   faucetUrl: string;
+  /** USDC **ERC-20** token address (x402 payment asset; 6 decimals). */
+  usdcAddress: Address;
+  /** Circle Gateway facilitator base URL (x402 verify/settle). */
+  gatewayUrl: string;
+  /**
+   * USDC ERC-20 EIP-712 domain (name/version) used when signing/verifying
+   * authorizations. Production should confirm these from the Gateway `/supported`
+   * response; overridable via env. Defaults are a reasonable Circle-USDC value.
+   */
+  usdcEip712: Eip712TokenDomain;
 }
 
 /**
@@ -24,8 +42,12 @@ export const ARC_TESTNET_DEFAULTS: NetworkConfig = {
   name: "arc-testnet",
   rpcUrl: "https://rpc.testnet.arc.network",
   chainId: 5042002,
+  caip2: "eip155:5042002",
   explorerUrl: "https://testnet.arcscan.app",
   faucetUrl: "https://faucet.circle.com",
+  usdcAddress: "0x3600000000000000000000000000000000000000",
+  gatewayUrl: "https://gateway-api-testnet.circle.com",
+  usdcEip712: { name: "USDC", version: "1" },
 };
 
 /**
@@ -72,7 +94,24 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
     env.ARC_NETWORK_NAME?.trim() ||
     (chainId === ARC_TESTNET_DEFAULTS.chainId ? "arc-testnet" : `arc-${chainId}`);
 
-  return { name, rpcUrl, chainId, explorerUrl, faucetUrl };
+  const usdcAddress = getAddress(env.ARC_USDC_ADDRESS?.trim() || ARC_TESTNET_DEFAULTS.usdcAddress);
+  const gatewayUrl = env.ARC_GATEWAY_URL?.trim() || ARC_TESTNET_DEFAULTS.gatewayUrl;
+  const usdcEip712: Eip712TokenDomain = {
+    name: env.ARC_USDC_EIP712_NAME?.trim() || ARC_TESTNET_DEFAULTS.usdcEip712.name,
+    version: env.ARC_USDC_EIP712_VERSION?.trim() || ARC_TESTNET_DEFAULTS.usdcEip712.version,
+  };
+
+  return {
+    name,
+    rpcUrl,
+    chainId,
+    caip2: `eip155:${chainId}`,
+    explorerUrl,
+    faucetUrl,
+    usdcAddress,
+    gatewayUrl,
+    usdcEip712,
+  };
 }
 
 /** Build a viem {@link Chain} from a {@link NetworkConfig}. */

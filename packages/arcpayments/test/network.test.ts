@@ -1,3 +1,4 @@
+import { getAddress } from "viem";
 import { describe, expect, it } from "vitest";
 import {
   ARC_NATIVE_GAS_DECIMALS,
@@ -22,6 +23,27 @@ describe("loadNetworkConfig", () => {
     expect(loadNetworkConfig({ ARC_FAUCET_URL: "https://faucet.example.test" }).faucetUrl).toBe(
       "https://faucet.example.test",
     );
+  });
+
+  it("provides verified x402/Gateway defaults (USDC ERC-20, Gateway testnet, CAIP-2)", () => {
+    const config = loadNetworkConfig({});
+    expect(config.usdcAddress).toBe("0x3600000000000000000000000000000000000000");
+    expect(config.gatewayUrl).toBe("https://gateway-api-testnet.circle.com");
+    expect(config.caip2).toBe("eip155:5042002");
+  });
+
+  it("derives the CAIP-2 id from the configured chain ID (env-only switch)", () => {
+    expect(loadNetworkConfig({ ARC_CHAIN_ID: "5042" }).caip2).toBe("eip155:5042");
+  });
+
+  it("reads USDC address (checksummed) and Gateway URL from env when provided", () => {
+    const lower = "0x000000000000000000000000000000000000dead";
+    const config = loadNetworkConfig({
+      ARC_USDC_ADDRESS: lower,
+      ARC_GATEWAY_URL: "https://gateway.example.test",
+    });
+    expect(config.usdcAddress).toBe(getAddress(lower));
+    expect(config.gatewayUrl).toBe("https://gateway.example.test");
   });
 
   it("returns the values configured via env (network switch is env-only)", () => {

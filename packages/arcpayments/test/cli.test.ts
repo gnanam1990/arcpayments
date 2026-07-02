@@ -13,6 +13,8 @@ describe("arcpayments --help", () => {
     expect(result.stdout).toContain("faucet");
     expect(result.stdout).toContain("gateway:deposit");
     expect(result.stdout).toContain("gateway:balance");
+    expect(result.stdout).toContain("gateway:withdraw");
+    expect(result.stdout).toContain("cctp:transfer");
     expect(result.stdout).toContain("add paywall");
   });
 
@@ -36,5 +38,27 @@ describe("unknown command", () => {
     const result = await run(["definitely-not-a-command"]);
     expect(result.code).not.toBe(0);
     expect(result.stderr).toContain("--help");
+  });
+});
+
+describe("seller cash-out commands gate on SELLER_PRIVATE_KEY (no network without it)", () => {
+  it("gateway:withdraw refuses without SELLER_PRIVATE_KEY", async () => {
+    const result = await run(["gateway:withdraw"], {});
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("SELLER_PRIVATE_KEY");
+  });
+
+  it("cctp:transfer requires an amount", async () => {
+    const result = await run(["cctp:transfer", "--to", "base-sepolia"], {
+      SELLER_PRIVATE_KEY: "0xabc",
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("requires an <amount>");
+  });
+
+  it("cctp:transfer refuses without SELLER_PRIVATE_KEY", async () => {
+    const result = await run(["cctp:transfer", "0.5", "--to", "base-sepolia"], {});
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("SELLER_PRIVATE_KEY");
   });
 });

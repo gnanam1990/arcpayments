@@ -1,6 +1,6 @@
 # ADR-0002 — Seller cash-out (Gateway withdraw → CCTP cross-chain)
 
-- **Status:** Proposed (awaiting approval — no burn/withdraw code until approved)
+- **Status:** Accepted (2026-07-02 — gate on `available`, bridge-kit, Base Sepolia, deps approved)
 - **Date:** 2026-07-02
 - **Stage:** 5 (first genuine on-chain `0x` tx hashes; CCTP **burns** USDC — irreversible)
 - **Deciders:** repo owner (Gnanam) + Claude

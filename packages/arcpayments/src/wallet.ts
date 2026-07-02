@@ -1,5 +1,6 @@
 import type { Account, Address, Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import type { NetworkEnv } from "./network";
 
 /**
  * The wallet **seam**. Callers depend on this interface, never on a concrete
@@ -198,6 +199,27 @@ export function runWalletNew(deps: WalletNewDeps): WalletNewResult {
   }
 
   return { ok: true, envPath: deps.envPath, roles };
+}
+
+/** A role paired with its derived public address. */
+export interface RoleAddress {
+  role: Role;
+  address: Address;
+}
+
+/**
+ * Derive the public address for each role whose private key is present in env.
+ * Used to tell the user which addresses to fund. Never returns key material.
+ */
+export function walletTargetsFromEnv(env: NetworkEnv): RoleAddress[] {
+  const targets: RoleAddress[] = [];
+  for (const role of ROLES) {
+    const key = env[WALLET_ENV_KEYS[role]]?.trim();
+    if (key) {
+      targets.push({ role, address: privateKeyToAccount(key as Hex).address });
+    }
+  }
+  return targets;
 }
 
 /** Human-readable summary of a wallet:new run. Contains no full private keys. */

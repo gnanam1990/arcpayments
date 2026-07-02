@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
+import { describe, expect, it } from "vitest";
 import {
-  formatWalletNewResult,
   LocalWallet,
-  redactSecret,
-  runWalletNew,
   WALLET_ENV_KEYS,
   type WalletNewDeps,
+  formatWalletNewResult,
+  redactSecret,
+  runWalletNew,
 } from "../src/wallet";
 
 // A fixed, well-known test key (NOT a real funded account) so tests are deterministic.

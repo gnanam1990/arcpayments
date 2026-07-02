@@ -16,6 +16,7 @@ export {
   loadNetworkConfig,
   type NetworkConfig,
   type NetworkEnv,
+  USDC_ERC20_DECIMALS,
 } from "./network";
 export {
   type CheckStatus,
@@ -28,3 +29,31 @@ export {
   runDoctor,
   runDoctorFromEnv,
 } from "./doctor";
+export {
+  type BalanceReader,
+  getBalance,
+  type NativeBalance,
+} from "./balance";
+export {
+  faucetCheck,
+  type FaucetCheckResult,
+  type FaucetTarget,
+  formatFaucetInstructions,
+} from "./faucet";
+export {
+  formatWalletNewResult,
+  LocalWallet,
+  parseEnv,
+  redactSecret,
+  type Role,
+  type RoleAddress,
+  runWalletNew,
+  upsertEnvVars,
+  WALLET_ENV_KEYS,
+  type Wallet,
+  type WalletNewDeps,
+  type WalletNewResult,
+  walletTargetsFromEnv,
+  type WalletRoleResult,
+} from "./wallet";
+export { createWalletNewDeps, isEnvGitIgnored } from "./wallet-node";

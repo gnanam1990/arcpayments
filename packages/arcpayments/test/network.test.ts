@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   ARC_NATIVE_GAS_DECIMALS,
   ARC_TESTNET_DEFAULTS,
+  USDC_ERC20_DECIMALS,
   createArcPublicClient,
   defineArcChain,
   loadNetworkConfig,
-  USDC_ERC20_DECIMALS,
 } from "../src/network";
 
 describe("loadNetworkConfig", () => {

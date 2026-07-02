@@ -1,6 +1,6 @@
 # ADR-0001 — x402 paywall for the metered-mcp tool
 
-- **Status:** Proposed (awaiting approval — no implementation until approved)
+- **Status:** Accepted (approved 2026-07-02 — in-band approach + deps + 6-dec path)
 - **Date:** 2026-07-02
 - **Stage:** 3 (first stage where money moves)
 - **Deciders:** repo owner (Gnanam) + Claude
@@ -130,6 +130,53 @@ built on Circle Gateway's `@circle-fin/x402-batching` primitives.**
 
 **Later (not this stage):** add the Streamable-HTTP transport + Circle `createGatewayMiddleware`
 as the production deployment path (Stage 7 scaffolder), reusing this same payment core.
+
+## In-band wire format (normative — keep transport-agnostic)
+
+The payment core is transport-agnostic; this is the exact in-band envelope used over
+MCP tool calls today. A Streamable-HTTP transport layers on later by mapping these 1:1
+to HTTP (challenge → 402 body; `payment` arg → `X-PAYMENT` header) **without changing the
+payment core**.
+
+**Paid tool input** — the tool's normal arguments plus an optional `payment`:
+```jsonc
+{ "text": "hello", "payment": <ExactPaymentPayload | omitted> }
+```
+
+**`ExactPaymentPayload`** (x402 exact-EVM standard; amounts are 6-dec USDC base-unit strings):
+```jsonc
+{
+  "x402Version": 1,
+  "scheme": "exact",
+  "network": "eip155:5042002",
+  "payload": {
+    "signature": "0x…",                       // EIP-712 TransferWithAuthorization
+    "authorization": {
+      "from": "0x…",  "to": "0x…(seller payTo)",
+      "value": "1000",                          // $0.001 → 1000 (6 decimals)
+      "validAfter": "0", "validBefore": "…",    // unix seconds (expiry window)
+      "nonce": "0x…(32 bytes)"                  // single-use (replay protection)
+    }
+  }
+}
+```
+
+**Challenge / rejection** — returned as an MCP tool result with `isError: true` and a
+single text content whose body is a JSON envelope (mirrors an HTTP-402 body with `accepts`):
+```jsonc
+{ "x402Version": 1,
+  "error": "PAYMENT_REQUIRED",                  // or "PAYMENT_INVALID" (+ "reason")
+  "accepts": [ <PaymentRequirements> ] }        // scheme/network/asset/amount/payTo/maxTimeoutSeconds/extra{name,version,verifyingContract}
+```
+
+**Success** — a normal (non-error) result: the tool's content, plus a second text content
+`{"settlement":{ "id","status","payer","amount" }}` for the queued (batched) settlement.
+
+**Verification rules enforced locally** (so an accepted payment will actually settle at the
+Gateway): scheme+network match, `to == payTo`, `value ≥ amount`, `validAfter ≤ now < validBefore`
+(**expiry**), nonce is 32-byte and **unused (replay)**, and the EIP-3009 signature recovers to
+`authorization.from`. On success the nonce is consumed; settlement failures are surfaced by the
+queue, never dropped.
 
 ## Consequences
 

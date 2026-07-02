@@ -4,14 +4,18 @@ build/
 coverage/
 *.tsbuildinfo
 
-# secrets — NEVER commit
+# secrets — NEVER commit (testnet keys count too — treat every key as real)
 .env
 .env.*
 !.env.example
 *.key
 *.pem
+*.p12
+*.keystore
+id_*
 wallets/
 keystore/
+secrets/
 
 # os / editor
 .DS_Store

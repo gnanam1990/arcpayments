@@ -37,6 +37,7 @@ function makePaywall(): SellerPaywall {
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,
+    resource: { url: "/premium_echo", description: "paid", mimeType: "application/json" },
   });
   return { guard, queue, sellerAddress: seller.getAddress() };
 }
@@ -94,6 +95,12 @@ describe("metered-mcp — paid tool (x402 paywall)", () => {
     const envelope = JSON.parse(textOf(result));
     expect(envelope.error).toBe("PAYMENT_REQUIRED");
     expect(envelope.accepts[0].amount).toBe("1000");
+    // Gateway-required: the challenge carries the resource being paid for.
+    expect(envelope.resource).toEqual({
+      url: "/premium_echo",
+      description: "paid",
+      mimeType: "application/json",
+    });
     expect(textOf(result)).not.toContain("SECRET");
     await client.close();
     await server.close();

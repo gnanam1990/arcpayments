@@ -44,18 +44,31 @@ function nextNonce(): Hex {
   return `0x${nonceSeq.toString(16).padStart(64, "0")}` as Hex;
 }
 
-/** A real seller: guard (with the confirmed domain) wrapping an in-memory queue. */
+const RESOURCE = { url: "/premium_echo", description: "paid tool", mimeType: "application/json" };
+
+/** A real seller: guard (with the confirmed domain + a resource) wrapping a queue. */
 function seller(price = "$0.001") {
   const queue = new InMemorySettlementQueue();
   const guard = new PaywallGuard({
     requirements: requirements(price),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,
+    resource: RESOURCE,
     now: () => 1000,
   });
   const transport = guardTransport(guard, async () => "PREMIUM-RESULT");
   return { queue, guard, transport };
 }
+
+describe("resource/accepted threading (Gateway-required fields)", () => {
+  it("carries the challenge resource + accepted onto the enqueued payment", async () => {
+    const { transport, queue } = seller();
+    await payForCall({ transport, wallet: buyer, nonce: nextNonce, now: () => 1000 });
+    const payment = queue.pending()[0]?.payment;
+    expect(payment?.resource).toEqual(RESOURCE);
+    expect(payment?.accepted).toEqual(requirements());
+  });
+});
 
 describe("payForCall (challenge → sign → retry → result)", () => {
   it("signs the challenge via the Wallet seam and gets the result the seller accepts", async () => {

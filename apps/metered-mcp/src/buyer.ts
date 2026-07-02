@@ -1,6 +1,6 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { LocalWallet, type PaidResponse, type PaidToolTransport } from "arcpayments";
-import type { ExactPaymentPayload, PaymentRequirements } from "arcpayments";
+import type { ExactPaymentPayload, PaymentRequirements, ResourceInfo } from "arcpayments";
 
 /**
  * Buyer agent glue for metered-mcp: adapt an MCP `Client` tool call into the
@@ -26,16 +26,19 @@ export function mcpPaidToolTransport(
         const envelope = JSON.parse(first) as {
           error?: string;
           reason?: string;
+          resource?: ResourceInfo;
           accepts?: unknown[];
         };
         const requirements = envelope.accepts?.[0] as PaymentRequirements;
+        const resource = envelope.resource;
         if (envelope.error === "PAYMENT_REQUIRED") {
-          return { kind: "challenge", requirements };
+          return { kind: "challenge", requirements, ...(resource ? { resource } : {}) };
         }
         return {
           kind: "rejected",
           reason: envelope.reason ?? envelope.error ?? "rejected",
           requirements,
+          ...(resource ? { resource } : {}),
         };
       }
 

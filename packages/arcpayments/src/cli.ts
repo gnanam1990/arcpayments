@@ -3,9 +3,10 @@ import { dirname, join } from "node:path";
 import type { Address, Hex } from "viem";
 import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
 import { faucetCheck, formatFaucetInstructions } from "./faucet";
+import { formatGatewayBalances, runGatewayBalance } from "./gateway-balance";
 import { formatGatewayDepositReport, runGatewayDeposit } from "./gateway-deposit";
 import { type NetworkEnv, loadNetworkConfig } from "./network";
-import { createGatewayDepositor } from "./paywall-gateway";
+import { createGatewayBalanceReader, createGatewayDepositor } from "./paywall-gateway";
 import { runAddPaywall } from "./paywall-generator";
 import { VERSION } from "./version";
 import { formatWalletNewResult, runWalletNew, walletTargetsFromEnv } from "./wallet";
@@ -33,6 +34,7 @@ Commands:
   wallet:new [--force]      Generate buyer + seller keys into a gitignored .env
   faucet [--check <addr>]   Print faucet URL + addresses, or check a balance
   gateway:deposit <amount>  Deposit buyer USDC into Circle Gateway (needs BUYER_PRIVATE_KEY)
+  gateway:balance [addr]    Show Circle Gateway balance (deposited vs available)
   add paywall <name>        Scaffold an x402-gated tool (--price, --out, --force)
 
 Options:
@@ -77,6 +79,10 @@ export async function run(argv: string[], env: NetworkEnv = process.env): Promis
 
   if (command === "gateway:deposit") {
     return gatewayDeposit(rest, env);
+  }
+
+  if (command === "gateway:balance") {
+    return gatewayBalance(rest, env);
   }
 
   if (command === "add" && rest[0] === "paywall") {
@@ -183,6 +189,32 @@ async function gatewayDeposit(argv: string[], env: NetworkEnv): Promise<CliResul
   });
   const report = await runGatewayDeposit(depositor, amount);
   const text = formatGatewayDepositReport(report);
+  return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
+}
+
+/**
+ * `arcpayments gateway:balance [address]` — show the Circle Gateway balance
+ * (deposited vs available) via the same `GatewayClient` as `gateway:deposit`.
+ * Needs BUYER_PRIVATE_KEY to construct the client (never logged); reads any address.
+ */
+async function gatewayBalance(argv: string[], env: NetworkEnv): Promise<CliResult> {
+  const address = argv.find((a) => !a.startsWith("--"));
+  const privateKey = env.BUYER_PRIVATE_KEY?.trim();
+  if (!privateKey) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "gateway:balance needs BUYER_PRIVATE_KEY set (used to reach Circle Gateway).\n",
+    };
+  }
+  const net = loadNetworkConfig(env);
+  const reader = createGatewayBalanceReader({
+    privateKey: privateKey as Hex,
+    chain: net.gatewayChainName,
+    rpcUrl: net.rpcUrl,
+  });
+  const report = await runGatewayBalance(reader, address);
+  const text = formatGatewayBalances(report);
   return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
 }
 

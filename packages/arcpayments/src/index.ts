@@ -13,6 +13,7 @@ export {
   type ArcPublicClient,
   createArcPublicClient,
   defineArcChain,
+  type Eip712TokenDomain,
   loadNetworkConfig,
   type NetworkConfig,
   type NetworkEnv,
@@ -57,3 +58,39 @@ export {
   type WalletRoleResult,
 } from "./wallet";
 export { createWalletNewDeps, isEnvGitIgnored } from "./wallet-node";
+export {
+  buildPaymentRequirements,
+  EIP3009_TRANSFER_TYPES,
+  type Eip3009Authorization,
+  type ExactPaymentPayload,
+  flushSettlements,
+  type FlushResult,
+  type GuardOutcome,
+  InMemoryNonceStore,
+  InMemorySettlementQueue,
+  LocalExactVerifier,
+  type NonceStore,
+  type PaymentRequirements,
+  type PaymentVerifier,
+  type PaywallConfig,
+  PaywallGuard,
+  type PaywallGuardConfig,
+  priceToBaseUnits,
+  type SettlementInput,
+  type SettlementOutcome,
+  type SettlementQueue,
+  type SettlementRecord,
+  type SettlementStatus,
+  type Settler,
+  type SignExactOptions,
+  signExactPayment,
+  type VerifyResult,
+} from "./paywall";
+export { type FacilitatorLike, GatewaySettler } from "./paywall-gateway";
+export {
+  type AddPaywallDeps,
+  type AddPaywallResult,
+  type RenderPaywallOptions,
+  renderPaywallTemplate,
+  runAddPaywall,
+} from "./paywall-generator";

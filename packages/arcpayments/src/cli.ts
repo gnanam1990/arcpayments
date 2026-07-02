@@ -1,7 +1,10 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { Address } from "viem";
 import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
 import { faucetCheck, formatFaucetInstructions } from "./faucet";
 import { type NetworkEnv, loadNetworkConfig } from "./network";
+import { runAddPaywall } from "./paywall-generator";
 import { VERSION } from "./version";
 import { formatWalletNewResult, runWalletNew, walletTargetsFromEnv } from "./wallet";
 import { createWalletNewDeps } from "./wallet-node";
@@ -27,6 +30,7 @@ Commands:
   doctor                    Diagnose your Arc setup (runtime, RPC, chain ID, wallet)
   wallet:new [--force]      Generate buyer + seller keys into a gitignored .env
   faucet [--check <addr>]   Print faucet URL + addresses, or check a balance
+  add paywall <name>        Scaffold an x402-gated tool (--price, --out, --force)
 
 Options:
   -h, --help                Show this help
@@ -68,11 +72,69 @@ export async function run(argv: string[], env: NetworkEnv = process.env): Promis
     return faucet(rest, env);
   }
 
+  if (command === "add" && rest[0] === "paywall") {
+    return addPaywall(rest.slice(1));
+  }
+
   return {
     code: 1,
     stdout: "",
     stderr: `arcpayments: unknown command "${command}"\nRun \`arcpayments --help\` to see available commands.\n`,
   };
+}
+
+/** Parse `--flag value` returning the value, or undefined. */
+function flagValue(argv: string[], flag: string): string | undefined {
+  const i = argv.indexOf(flag);
+  return i !== -1 ? argv[i + 1] : undefined;
+}
+
+/** Positional args: skip flags and the values that follow value-taking flags. */
+function positionals(argv: string[], valueFlags: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === undefined) continue;
+    if (arg.startsWith("--")) {
+      if (valueFlags.includes(arg)) i++; // skip its value
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
+}
+
+/** `arcpayments add paywall <name> [--price $x] [--out path] [--force]`. */
+function addPaywall(argv: string[]): CliResult {
+  const name = positionals(argv, ["--price", "--out"])[0];
+  if (!name) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "add paywall requires a <name>, e.g. `arcpayments add paywall premium`\n",
+    };
+  }
+  const price = flagValue(argv, "--price") ?? "$0.001";
+  const outPath =
+    flagValue(argv, "--out") ?? join(process.cwd(), "src", "tools", `${name}.paywall.ts`);
+  const result = runAddPaywall({
+    name,
+    price,
+    outPath,
+    force: argv.includes("--force"),
+    fileExists: existsSync,
+    writeFile: (path, contents) => {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, contents);
+    },
+  });
+  return result.ok
+    ? {
+        code: 0,
+        stdout: `Scaffolded paid tool "${name}" (${price}) → ${result.outPath}\n`,
+        stderr: "",
+      }
+    : { code: 1, stdout: "", stderr: `${result.error}\n` };
 }
 
 /** `arcpayments wallet:new [--force]` — generate keys into a gitignored `.env`. */

@@ -58,6 +58,21 @@ Package sources: <https://www.npmjs.com/package/@circle-fin/x402-batching> ·
 <https://www.npmjs.com/package/@circle-fin/provider-cctp-v2> ·
 <https://www.npmjs.com/package/@circle-fin/modular-wallets-core>
 
+## x402 / Circle Gateway — verified Stage 3 (2026-07-02)
+
+For the paywall (ADR-0001). All read from env / the `network` module in code — never hardcoded.
+
+| Key | Value | Source | Status |
+|-----|-------|--------|--------|
+| USDC ERC-20 (x402 asset) | `0x3600000000000000000000000000000000000000` (**6 decimals**) | <https://docs.arc.io/arc/references/contract-addresses> | ✅ verified |
+| GatewayWallet | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | <https://docs.arc.io/arc/references/contract-addresses> | ✅ verified |
+| Gateway facilitator (testnet) | `https://gateway-api-testnet.circle.com` | Circle docs + `@circle-fin/x402-batching` | ✅ verified |
+| Network id (CAIP-2) | `eip155:5042002` | `@circle-fin/x402-batching` (chain configs) | ✅ verified |
+| x402 amount scale | **USDC ERC-20, 6 decimals** (`$0.001` → `1000` base units) | Circle/x402 docs + SDK `GatewayEvmScheme` | ✅ verified |
+
+**x402 uses the 6-decimal ERC-20 USDC path — NOT the 18-decimal native/gas scale.** Use
+`USDC_ERC20_DECIMALS` (6) for all x402 amounts; `ARC_NATIVE_GAS_DECIMALS` (18) is gas-only.
+
 ## Mainnet (later — switch by changing RPC + chain ID only)
 
 | Key | Value | Status |

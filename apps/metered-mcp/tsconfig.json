@@ -1,7 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "arcpayments": ["../../packages/arcpayments/src/index.ts"]
+    }
   },
   "include": ["src", "test", "tsup.config.ts"]
 }

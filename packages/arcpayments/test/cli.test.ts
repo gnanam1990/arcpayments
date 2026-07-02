@@ -11,6 +11,7 @@ describe("arcpayments --help", () => {
     expect(result.stdout).toContain("doctor");
     expect(result.stdout).toContain("wallet:new");
     expect(result.stdout).toContain("faucet");
+    expect(result.stdout).toContain("add paywall");
   });
 
   it("treats -h and no args the same as --help (exit 0)", async () => {

@@ -87,6 +87,7 @@ export {
   type VerifyResult,
 } from "./paywall";
 export {
+  createGatewayBalanceReader,
   createGatewayDepositor,
   type FacilitatorLike,
   GatewayBatchSettler,
@@ -99,6 +100,13 @@ export {
   type GatewayDepositReport,
   runGatewayDeposit,
 } from "./gateway-deposit";
+export {
+  formatGatewayBalances,
+  type GatewayBalanceReader,
+  type GatewayBalanceReport,
+  type GatewayBalances,
+  runGatewayBalance,
+} from "./gateway-balance";
 export {
   type BatchSettleOutcome,
   type BatchSettler,

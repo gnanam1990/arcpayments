@@ -1,6 +1,8 @@
 import { GatewayClient } from "@circle-fin/x402-batching/client";
 import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
+import type { Address } from "viem";
 import type { BatchSettleOutcome, BatchSettler } from "./buyer";
+import type { GatewayBalanceReader, GatewayBalances } from "./gateway-balance";
 import type { DepositResult, GatewayDepositor } from "./gateway-deposit";
 import type {
   ExactPaymentPayload,
@@ -184,6 +186,36 @@ export function createGatewayDepositor(opts: {
     availableBalance: async (): Promise<string> => {
       const balances = await client.getBalances();
       return balances.gateway.formattedAvailable;
+    },
+  };
+}
+
+/**
+ * Real Circle Gateway balance reader — the **same** `GatewayClient` that
+ * {@link createGatewayDepositor} uses. Reads deposited vs available balances via
+ * `GatewayClient.getBalances()`. On-chain/API — never invoked in CI.
+ */
+export function createGatewayBalanceReader(opts: {
+  privateKey: `0x${string}`;
+  chain: string;
+  rpcUrl?: string;
+}): GatewayBalanceReader {
+  const client = new GatewayClient({
+    chain: opts.chain as never,
+    privateKey: opts.privateKey,
+    ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+  });
+  return {
+    getBalances: async (address): Promise<GatewayBalances> => {
+      const b = await client.getBalances(address as Address | undefined);
+      return {
+        address: address ?? client.address,
+        walletFormatted: b.wallet.formatted,
+        gatewayTotalFormatted: b.gateway.formattedTotal,
+        gatewayAvailableFormatted: b.gateway.formattedAvailable,
+        gatewayWithdrawingFormatted: b.gateway.formattedWithdrawing,
+        gatewayWithdrawableFormatted: b.gateway.formattedWithdrawable,
+      };
     },
   };
 }

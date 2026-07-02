@@ -1,6 +1,6 @@
 {
   "name": "arcpayments",
-  "version": "0.0.1",
+  "version": "0.4.0",
   "description": "Agentic-commerce tooling for Arc: a scaffolder + CLI for wallets, x402 paywalls, Gateway nanopayment batching, cross-chain withdrawal, and spend guards. Community project for the Arc ecosystem; not affiliated with Circle/Arc.",
   "license": "MIT",
   "type": "module",

@@ -1,3 +1,5 @@
+import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
+import type { NetworkEnv } from "./network";
 import { VERSION } from "./version";
 
 /** Result of a CLI invocation. Pure data so it is trivial to unit-test. */
@@ -18,7 +20,7 @@ Usage:
   arcpayments <command> [options]
 
 Commands:
-  doctor            Diagnose your Arc setup (RPC, chain ID, wallet, faucet balance)
+  doctor            Diagnose your Arc setup (runtime, RPC, chain ID, wallet)
 
 Options:
   -h, --help        Show this help
@@ -32,11 +34,12 @@ Testnet only — all USDC is test-value.
  * Run the `arcpayments` CLI against the given argument list.
  *
  * @param argv arguments after the executable + script (i.e. `process.argv.slice(2)`).
+ * @param env  environment to read config/wallet presence from (injectable for tests).
  * @returns exit code plus captured stdout/stderr — no side effects, so callers
  *          (and tests) decide how to surface it.
  */
-export function run(argv: string[]): CliResult {
-  const [command, ...rest] = argv;
+export async function run(argv: string[], env: NetworkEnv = process.env): Promise<CliResult> {
+  const [command] = argv;
 
   if (command === undefined || command === "--help" || command === "-h") {
     return { code: 0, stdout: HELP, stderr: "" };
@@ -47,27 +50,13 @@ export function run(argv: string[]): CliResult {
   }
 
   if (command === "doctor") {
-    return doctor(rest);
+    const report = await runDoctorFromEnv(env);
+    return { code: report.ok ? 0 : 1, stdout: formatDoctorReport(report), stderr: "" };
   }
 
   return {
     code: 1,
     stdout: "",
     stderr: `arcpayments: unknown command "${command}"\nRun \`arcpayments --help\` to see available commands.\n`,
-  };
-}
-
-/**
- * `arcpayments doctor` — Stage 0 stub.
- *
- * Deliberately does no network / wallet work yet (that lands in Stage 1, reading
- * every endpoint from NETWORK.md / env — never hardcoded). Exits 0 so the stub is
- * a no-op in CI.
- */
-function doctor(_argv: string[]): CliResult {
-  return {
-    code: 0,
-    stdout: "arcpayments doctor: not implemented yet (stub — real checks arrive in Stage 1).\n",
-    stderr: "",
   };
 }

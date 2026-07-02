@@ -1,0 +1,31 @@
+{
+  "name": "arcpayments",
+  "version": "0.0.1",
+  "description": "Agentic-commerce tooling for Arc: a scaffolder + CLI for wallets, x402 paywalls, Gateway nanopayment batching, cross-chain withdrawal, and spend guards. Community project for the Arc ecosystem; not affiliated with Circle/Arc.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": ["arc", "circle", "usdc", "x402", "agentic-commerce", "cli", "stablecoin"],
+  "bin": {
+    "arcpayments": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -22,6 +22,43 @@ import type { Hex } from "viem";
 /** Transfer lifecycle (from the SDK `TransferStatus` union). */
 export type TransferStatus = "received" | "batched" | "confirmed" | "completed" | "failed" | string;
 
+/**
+ * The transfer status that means the batch has **settled on-chain**.
+ *
+ * Circle does not publish exact per-status definitions, but the lifecycle is
+ * `received → batched → confirmed → completed`, and Circle describes on-chain
+ * settlement as happening "periodically in the background" after instant off-chain
+ * acceptance. We treat `completed` as the terminal, on-chain-settled state.
+ */
+export const ON_CHAIN_FINAL_STATUS = "completed";
+
+/** True only when the transfer has settled on-chain (status `completed`). */
+export function isOnChainSettled(status: string): boolean {
+  return status === ON_CHAIN_FINAL_STATUS;
+}
+
+/**
+ * Human description that distinguishes **Gateway-accepted** (verified + queued,
+ * off-chain) from **on-chain-confirmed** — so reporting never implies a finality
+ * that hasn't happened.
+ */
+export function describeTransferStatus(status: string): string {
+  switch (status) {
+    case "received":
+      return "accepted by Gateway (signature verified, recipient's unified balance credited); queued for a periodic on-chain batch — NOT yet on-chain";
+    case "batched":
+      return "bundled into a Gateway batch awaiting on-chain settlement — NOT yet on-chain";
+    case "confirmed":
+      return "on-chain settlement submitted, confirming — NOT yet final";
+    case "completed":
+      return "on-chain batch settlement COMPLETE";
+    case "failed":
+      return "settlement FAILED";
+    default:
+      return `unknown status "${status}"`;
+  }
+}
+
 /** A resolved transfer: its status, the on-chain hash (once available), and raw body. */
 export interface TransferInfo {
   id: string;

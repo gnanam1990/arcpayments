@@ -228,11 +228,18 @@ export async function startPaymentLoop(
   return { calls, totalSpent, stoppedBy, ...(reason ? { reason } : {}), batches };
 }
 
-/** Result of settling a batch of records in one flush. */
+/** Result of submitting a batch of records to Gateway in one flush. */
 export interface BatchSettleOutcome {
-  /** The single on-chain settlement tx hash Gateway produced for the batch. */
+  /**
+   * Circle's settlement/transfer id (a UUID) for the batch — NOT an on-chain tx
+   * hash. Resolve it to the real hash with `resolveSettlementTxHash`.
+   */
   transaction?: string;
-  /** Ids that settled. */
+  /**
+   * Ids Gateway **accepted** for batch settlement (verified + queued off-chain).
+   * This is NOT on-chain finality — the on-chain batch settles periodically in the
+   * background (track it via `getTransferById` → status `completed`).
+   */
   settled: string[];
   /** Ids that failed, with reasons — surfaced, never dropped. */
   failed: { id: string; error: string }[];

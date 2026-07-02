@@ -105,8 +105,11 @@ export {
   settlementOutcomeFrom,
 } from "./paywall-gateway";
 export {
+  describeTransferStatus,
   extractTxHash,
+  isOnChainSettled,
   isOnChainTxHash,
+  ON_CHAIN_FINAL_STATUS,
   type ResolveSettlementOptions,
   resolveSettlementTxHash,
   type SettlementResolver,

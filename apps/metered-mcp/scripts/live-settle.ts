@@ -11,11 +11,13 @@
  *  - SELLER_ADDRESS (or SELLER_PRIVATE_KEY) is the payout identity.
  *
  * What it does: runs the buyer loop for a small N (buyer signs EIP-3009 locally,
- * seller verifies locally and queues), then flushes ONE batch to Circle Gateway.
- * Circle's `/settle` returns a settlement/transfer **UUID** (not an on-chain hash),
- * so we resolve it via `getTransferById` to the real `0x…` tx hash and only then
- * build the explorer link. Also prints buyer/seller Gateway balance deltas as
- * independent proof of settlement.
+ * seller verifies locally and queues), then submits ONE batch to Circle Gateway.
+ * A successful flush = Gateway **ACCEPTED** the authorizations (verified + queued),
+ * which is NOT on-chain finality — the on-chain batch settles periodically in the
+ * background (no dev-facing flush; cadence not published by Circle). We report the
+ * transfer status (received/batched/…/completed) separately, resolve the settlement
+ * UUID → the real `0x…` hash via `getTransferById`, and only build the explorer link
+ * from an on-chain-`completed` hash. Also prints unified-balance deltas.
  *
  *   LIVE=1 BUYER_PRIVATE_KEY=0x… SELLER_ADDRESS=0x… bun run apps/metered-mcp/scripts/live-settle.ts
  *
@@ -31,13 +33,16 @@ import {
   InMemorySettlementQueue,
   LocalExactVerifier,
   LocalWallet,
+  ON_CHAIN_FINAL_STATUS,
   PaywallGuard,
   USDC_ERC20_DECIMALS,
   buildPaymentRequirements,
   createGatewayBalanceReader,
   createSettlementResolver,
+  describeTransferStatus,
   flushBatch,
   guardTransport,
+  isOnChainSettled,
   loadNetworkConfig,
   resolveSettlementTxHash,
   startPaymentLoop,
@@ -129,25 +134,31 @@ async function main(): Promise<void> {
   const buyerBefore = (await balances.getBalances(buyer.getAddress())).gatewayAvailableFormatted;
   const sellerBefore = (await balances.getBalances(sellerAddress)).gatewayTotalFormatted;
 
-  // 2) Settle ONE batch on-chain via Circle Gateway.
+  // 2) Submit ONE batch to Circle Gateway. NOTE: a successful flush means Gateway
+  //    ACCEPTED the authorizations (verified + queued) — it is NOT on-chain finality.
+  //    The on-chain batch settles periodically in the background (no dev-facing flush).
   const outcome = await flushBatch(queue, settler);
 
   if (!outcome) {
     process.stdout.write("live-settle: nothing to settle.\n");
     return;
   }
+  const total = outcome.settled.length + outcome.failed.length;
   process.stdout.write(
-    `live-settle: settled ${outcome.settled.length}, failed ${outcome.failed.length}\n`,
+    `live-settle: Gateway ACCEPTED ${outcome.settled.length}/${total} authorization(s) ` +
+      `(verified + queued for on-chain batch — NOT yet on-chain-confirmed). ${outcome.failed.length} failed.\n`,
   );
   // Print the FULL Gateway error for each failed payment — not a generic message.
   for (const failure of outcome.failed) {
     process.stdout.write(`live-settle: FAILED ${failure.id}: ${failure.error}\n`);
   }
 
-  // 3) Resolve the settlement/transfer UUID → the REAL on-chain tx hash.
+  // 3) Report on-chain settlement state separately, and resolve the UUID → real hash.
   if (outcome.transaction) {
     const settlementId = outcome.transaction;
-    process.stdout.write(`live-settle: Circle settlement/transfer ID: ${settlementId}\n`);
+    process.stdout.write(
+      `live-settle: Circle settlement/transfer ID (UUID, not a tx hash): ${settlementId}\n`,
+    );
     const resolver = createSettlementResolver({
       privateKey: buyerKey as Hex,
       chain: net.gatewayChainName,
@@ -157,26 +168,33 @@ async function main(): Promise<void> {
       attempts: 8,
       delayMs: 3000,
     });
-    if (info.txHash) {
-      process.stdout.write(
-        `live-settle: ON-CHAIN TX HASH ${info.txHash} (status=${info.status})\n`,
-      );
+    process.stdout.write(
+      `live-settle: on-chain settlement status=${info.status} — ${describeTransferStatus(info.status)}\n`,
+    );
+    if (isOnChainSettled(info.status) && info.txHash) {
+      process.stdout.write(`live-settle: ON-CHAIN CONFIRMED — tx ${info.txHash}\n`);
       process.stdout.write(`live-settle: explorer ${net.explorerUrl}/tx/${info.txHash}\n`);
     } else {
-      // No real 0x hash yet — do NOT build a fake /tx/<uuid> link.
+      // Not on-chain yet — do NOT build a fake /tx/<uuid> link.
       process.stdout.write(
-        `live-settle: on-chain tx hash not ready — batch ID ${settlementId}, status=${info.status}. ` +
-          `Re-check later (getTransferById). Raw: ${JSON.stringify(info.raw)}\n`,
+        `live-settle: NOT on-chain-confirmed yet — track batch ID ${settlementId} ` +
+          `(getTransferById → status "${ON_CHAIN_FINAL_STATUS}"). Raw: ${JSON.stringify(info.raw)}\n`,
       );
     }
   }
 
-  // Balance deltas (independent proof money moved).
+  // Unified-balance deltas (independent proof): Circle credits the recipient's
+  // unified balance ~instantly on acceptance — this updates before on-chain finality.
   const buyerAfter = (await balances.getBalances(buyer.getAddress())).gatewayAvailableFormatted;
   const sellerAfter = (await balances.getBalances(sellerAddress)).gatewayTotalFormatted;
   process.stdout.write(
-    `live-settle: buyer Gateway available: ${buyerBefore} → ${buyerAfter} USDC\n` +
-      `live-settle: seller Gateway total:     ${sellerBefore} → ${sellerAfter} USDC\n`,
+    `live-settle: buyer Gateway available (unified): ${buyerBefore} → ${buyerAfter} USDC\n`,
+  );
+  process.stdout.write(
+    `live-settle: seller Gateway total (unified):   ${sellerBefore} → ${sellerAfter} USDC\n`,
+  );
+  process.stdout.write(
+    "live-settle: (unified balance = off-chain ledger; on-chain finality is the transfer status above)\n",
   );
 }
 

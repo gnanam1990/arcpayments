@@ -2,13 +2,38 @@ import { describe, expect, it } from "vitest";
 import {
   type SettlementResolver,
   type TransferInfo,
+  describeTransferStatus,
   extractTxHash,
+  isOnChainSettled,
   isOnChainTxHash,
   resolveSettlementTxHash,
 } from "../src/gateway-settlement";
 
 const HASH = `0x${"a".repeat(64)}` as const;
 const BLOCK = `0x${"b".repeat(64)}` as const;
+
+describe("isOnChainSettled — only `completed` means on-chain finality", () => {
+  it("is true only for completed", () => {
+    expect(isOnChainSettled("completed")).toBe(true);
+    for (const s of ["received", "batched", "confirmed", "failed", "unknown"]) {
+      expect(isOnChainSettled(s)).toBe(false);
+    }
+  });
+});
+
+describe("describeTransferStatus — distinguishes accepted vs on-chain-confirmed", () => {
+  it("marks received/batched as accepted-but-NOT-on-chain", () => {
+    expect(describeTransferStatus("received").toLowerCase()).toContain("not yet on-chain");
+    expect(describeTransferStatus("batched").toLowerCase()).toContain("not yet on-chain");
+  });
+  it("marks completed as on-chain settled", () => {
+    expect(describeTransferStatus("completed").toLowerCase()).toContain("on-chain");
+    expect(describeTransferStatus("completed").toLowerCase()).not.toContain("not yet");
+  });
+  it("marks failed as a failure", () => {
+    expect(describeTransferStatus("failed").toLowerCase()).toContain("fail");
+  });
+});
 
 describe("isOnChainTxHash", () => {
   it("accepts a 32-byte 0x hash and rejects a UUID / short string", () => {

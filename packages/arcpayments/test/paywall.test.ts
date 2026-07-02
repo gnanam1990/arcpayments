@@ -1,20 +1,20 @@
-import { getAddress, type Hex } from "viem";
+import { type Hex, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it } from "vitest";
 import {
-  buildPaymentRequirements,
   type ExactPaymentPayload,
-  flushSettlements,
   InMemoryNonceStore,
   InMemorySettlementQueue,
   LocalExactVerifier,
   type PaymentRequirements,
   type PaymentVerifier,
   PaywallGuard,
-  priceToBaseUnits,
   type Settler,
-  signExactPayment,
   type VerifyResult,
+  buildPaymentRequirements,
+  flushSettlements,
+  priceToBaseUnits,
+  signExactPayment,
 } from "../src/paywall";
 
 const BUYER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as const;
@@ -110,7 +110,12 @@ describe("LocalExactVerifier — expiry (failing-then-passing behaviour)", () =>
   it("rejects a payment whose validBefore is in the past", async () => {
     const reqs = requirements();
     // Signed to expire at t=1050; verified at t=2000 → expired.
-    const payment = await pay(reqs, { nonce: nonce("55"), now: 1000, validAfter: 0, validBefore: 1050 });
+    const payment = await pay(reqs, {
+      nonce: nonce("55"),
+      now: 1000,
+      validAfter: 0,
+      validBefore: 1050,
+    });
     const result = await new LocalExactVerifier().verify(payment, reqs, 2000);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/expired/i);
@@ -118,7 +123,12 @@ describe("LocalExactVerifier — expiry (failing-then-passing behaviour)", () =>
 
   it("accepts the same authorization while still inside its window", async () => {
     const reqs = requirements();
-    const payment = await pay(reqs, { nonce: nonce("55"), now: 1000, validAfter: 0, validBefore: 1050 });
+    const payment = await pay(reqs, {
+      nonce: nonce("55"),
+      now: 1000,
+      validAfter: 0,
+      validBefore: 1050,
+    });
     const result = await new LocalExactVerifier().verify(payment, reqs, 1049);
     expect(result.ok).toBe(true);
   });
@@ -144,7 +154,11 @@ describe("LocalExactVerifier — replay protection (single-use nonce)", () => {
     const store = new InMemoryNonceStore();
     const verifier = new LocalExactVerifier(store);
     await verifier.verify(await pay(reqs, { nonce: nonce("77"), now: 1000 }), reqs, 1000);
-    const second = await verifier.verify(await pay(reqs, { nonce: nonce("88"), now: 1000 }), reqs, 1000);
+    const second = await verifier.verify(
+      await pay(reqs, { nonce: nonce("88"), now: 1000 }),
+      reqs,
+      1000,
+    );
     expect(second.ok).toBe(true);
   });
 });
@@ -177,7 +191,12 @@ describe("PaywallGuard", () => {
 
   it("runs the tool AND enqueues a settlement record on a valid payment", async () => {
     const queue = new InMemorySettlementQueue();
-    const guard = new PaywallGuard({ requirements: requirements(), verifier: okVerifier, queue, now: () => 1000 });
+    const guard = new PaywallGuard({
+      requirements: requirements(),
+      verifier: okVerifier,
+      queue,
+      now: () => 1000,
+    });
     const payment = await pay(requirements(), { nonce: nonce("99"), now: 1000 });
     const outcome = await guard.guard(payment, async () => "premium-result");
     expect(outcome.status).toBe("ok");
@@ -191,12 +210,20 @@ describe("PaywallGuard", () => {
 
   it("rejects an invalid payment and does NOT run the tool or enqueue", async () => {
     const queue = new InMemorySettlementQueue();
-    const guard = new PaywallGuard({ requirements: requirements(), verifier: rejectVerifier, queue, now: () => 1000 });
-    let ran = false;
-    const outcome = await guard.guard(await pay(requirements(), { nonce: nonce("ab"), now: 1000 }), async () => {
-      ran = true;
-      return "x";
+    const guard = new PaywallGuard({
+      requirements: requirements(),
+      verifier: rejectVerifier,
+      queue,
+      now: () => 1000,
     });
+    let ran = false;
+    const outcome = await guard.guard(
+      await pay(requirements(), { nonce: nonce("ab"), now: 1000 }),
+      async () => {
+        ran = true;
+        return "x";
+      },
+    );
     expect(outcome.status).toBe("rejected");
     expect(ran).toBe(false);
     expect(queue.pending()).toHaveLength(0);

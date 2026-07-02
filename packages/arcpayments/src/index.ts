@@ -86,3 +86,11 @@ export {
   signExactPayment,
   type VerifyResult,
 } from "./paywall";
+export { type FacilitatorLike, GatewaySettler } from "./paywall-gateway";
+export {
+  type AddPaywallDeps,
+  type AddPaywallResult,
+  type RenderPaywallOptions,
+  renderPaywallTemplate,
+  runAddPaywall,
+} from "./paywall-generator";

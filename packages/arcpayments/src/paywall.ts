@@ -1,8 +1,8 @@
 import {
   type Account,
   type Address,
-  getAddress,
   type Hex,
+  getAddress,
   parseUnits,
   recoverTypedDataAddress,
 } from "viem";
@@ -162,7 +162,12 @@ export async function signExactPayment(
       nonce: authorization.nonce,
     },
   });
-  return { x402Version: 1, scheme: "exact", network: requirements.network, payload: { signature, authorization } };
+  return {
+    x402Version: 1,
+    scheme: "exact",
+    network: requirements.network,
+    payload: { signature, authorization },
+  };
 }
 
 /** Verification outcome. */
@@ -245,7 +250,8 @@ export class LocalExactVerifier implements PaymentVerifier {
     if (nowBig >= validBefore) return { ok: false, reason: "payment authorization expired" };
 
     if (!NONCE_RE.test(auth.nonce)) return { ok: false, reason: "invalid nonce format" };
-    if (this.nonces.has(auth.nonce)) return { ok: false, reason: "replayed nonce (proof already used)" };
+    if (this.nonces.has(auth.nonce))
+      return { ok: false, reason: "replayed nonce (proof already used)" };
 
     let recovered: Address;
     try {
@@ -347,7 +353,10 @@ export interface FlushResult {
  * A failed or throwing settle marks the record `failed` **and keeps it in the
  * queue** (surfaced via {@link SettlementQueue.failed}) — never silently dropped.
  */
-export async function flushSettlements(queue: SettlementQueue, settler: Settler): Promise<FlushResult> {
+export async function flushSettlements(
+  queue: SettlementQueue,
+  settler: Settler,
+): Promise<FlushResult> {
   const settled: SettlementRecord[] = [];
   const failed: SettlementRecord[] = [];
   for (const record of queue.pending()) {

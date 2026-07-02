@@ -36,6 +36,8 @@ export interface NetworkConfig {
   x402MinValiditySeconds: number;
   /** x402 protocol version advertised/settled with Circle Gateway. */
   x402Version: number;
+  /** Circle Gateway SDK chain identifier (e.g. `arcTestnet`; `arc` for mainnet). */
+  gatewayChainName: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export const ARC_TESTNET_DEFAULTS: NetworkConfig = {
   x402Domain: { name: "GatewayWalletBatched", version: "1" },
   x402MinValiditySeconds: 604800,
   x402Version: 2,
+  gatewayChainName: "arcTestnet",
 };
 
 /**
@@ -122,6 +125,8 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
     ARC_TESTNET_DEFAULTS.x402Version,
     "ARC_X402_VERSION",
   );
+  const gatewayChainName =
+    env.ARC_GATEWAY_CHAIN_NAME?.trim() || ARC_TESTNET_DEFAULTS.gatewayChainName;
 
   return {
     name,
@@ -136,6 +141,7 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
     x402Domain,
     x402MinValiditySeconds,
     x402Version,
+    gatewayChainName,
   };
 }
 

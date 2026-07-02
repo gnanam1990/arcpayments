@@ -11,6 +11,7 @@ describe("arcpayments --help", () => {
     expect(result.stdout).toContain("doctor");
     expect(result.stdout).toContain("wallet:new");
     expect(result.stdout).toContain("faucet");
+    expect(result.stdout).toContain("gateway:deposit");
     expect(result.stdout).toContain("add paywall");
   });
 

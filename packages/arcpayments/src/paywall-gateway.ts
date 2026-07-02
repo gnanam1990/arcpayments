@@ -1,5 +1,7 @@
+import { GatewayClient } from "@circle-fin/x402-batching/client";
 import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
 import type { BatchSettleOutcome, BatchSettler } from "./buyer";
+import type { DepositResult, GatewayDepositor } from "./gateway-deposit";
 import type {
   ExactPaymentPayload,
   PaymentRequirements,
@@ -149,4 +151,39 @@ export class GatewayBatchSettler implements BatchSettler {
 
     return { ...(transaction ? { transaction } : {}), settled, failed };
   }
+}
+
+/**
+ * Real Circle Gateway deposit backend, wrapping the SDK `GatewayClient`
+ * (`@circle-fin/x402-batching/client`). Deposits USDC from the wallet into the
+ * buyer's Gateway balance (approve + deposit on the GatewayWallet contract), so
+ * the x402 buyer loop can settle. On-chain — never invoked in CI.
+ */
+export function createGatewayDepositor(opts: {
+  privateKey: `0x${string}`;
+  chain: string;
+  rpcUrl?: string;
+}): GatewayDepositor {
+  const client = new GatewayClient({
+    // `chain` is the SDK's SupportedChainName (e.g. "arcTestnet"); read from config.
+    chain: opts.chain as never,
+    privateKey: opts.privateKey,
+    ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+  });
+  return {
+    deposit: async (amount): Promise<DepositResult> => {
+      const r = await client.deposit(amount);
+      return {
+        ...(r.approvalTxHash ? { approvalTxHash: r.approvalTxHash } : {}),
+        depositTxHash: r.depositTxHash,
+        amount: r.amount.toString(),
+        formattedAmount: r.formattedAmount,
+        depositor: r.depositor,
+      };
+    },
+    availableBalance: async (): Promise<string> => {
+      const balances = await client.getBalances();
+      return balances.gateway.formattedAvailable;
+    },
+  };
 }

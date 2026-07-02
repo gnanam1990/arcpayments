@@ -39,6 +39,11 @@ describe("loadNetworkConfig", () => {
     expect(config.x402Domain).toEqual({ name: "GatewayWalletBatched", version: "1" });
     expect(config.x402MinValiditySeconds).toBe(604800);
     expect(config.x402Version).toBe(2);
+    expect(config.gatewayChainName).toBe("arcTestnet");
+  });
+
+  it("reads the Gateway SDK chain name from env (env-only testnet→mainnet)", () => {
+    expect(loadNetworkConfig({ ARC_GATEWAY_CHAIN_NAME: "arc" }).gatewayChainName).toBe("arc");
   });
 
   it("overrides the x402 domain + validity + version from env", () => {

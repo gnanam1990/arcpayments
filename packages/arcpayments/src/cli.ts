@@ -1,16 +1,23 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Address, Hex } from "viem";
+import { formatCctpReport, runCctpTransfer } from "./cctp";
 import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
 import { faucetCheck, formatFaucetInstructions } from "./faucet";
 import { formatGatewayBalances, runGatewayBalance } from "./gateway-balance";
 import { formatGatewayDepositReport, runGatewayDeposit } from "./gateway-deposit";
 import { type NetworkEnv, loadNetworkConfig } from "./network";
-import { createGatewayBalanceReader, createGatewayDepositor } from "./paywall-gateway";
+import {
+  createCctpBridge,
+  createGatewayBalanceReader,
+  createGatewayDepositor,
+  createGatewayWithdrawer,
+} from "./paywall-gateway";
 import { runAddPaywall } from "./paywall-generator";
 import { VERSION } from "./version";
 import { formatWalletNewResult, runWalletNew, walletTargetsFromEnv } from "./wallet";
 import { createWalletNewDeps } from "./wallet-node";
+import { formatWithdrawReport, runGatewayWithdraw } from "./withdraw";
 
 /** Result of a CLI invocation. Pure data so it is trivial to unit-test. */
 export interface CliResult {
@@ -35,6 +42,8 @@ Commands:
   faucet [--check <addr>]   Print faucet URL + addresses, or check a balance
   gateway:deposit <amount>  Deposit buyer USDC into Circle Gateway (needs BUYER_PRIVATE_KEY)
   gateway:balance [addr]    Show Circle Gateway balance (deposited vs available)
+  gateway:withdraw [amt]    Cash the seller's Gateway balance to their Arc wallet (needs SELLER_PRIVATE_KEY)
+  cctp:transfer <amt> --to <chain>  Bridge Arc USDC cross-chain via CCTP v2 (needs SELLER_PRIVATE_KEY)
   add paywall <name>        Scaffold an x402-gated tool (--price, --out, --force)
 
 Options:
@@ -83,6 +92,14 @@ export async function run(argv: string[], env: NetworkEnv = process.env): Promis
 
   if (command === "gateway:balance") {
     return gatewayBalance(rest, env);
+  }
+
+  if (command === "gateway:withdraw") {
+    return gatewayWithdraw(rest, env);
+  }
+
+  if (command === "cctp:transfer") {
+    return cctpTransfer(rest, env);
   }
 
   if (command === "add" && rest[0] === "paywall") {
@@ -215,6 +232,70 @@ async function gatewayBalance(argv: string[], env: NetworkEnv): Promise<CliResul
   });
   const report = await runGatewayBalance(reader, address);
   const text = formatGatewayBalances(report);
+  return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
+}
+
+/**
+ * `arcpayments gateway:withdraw [amount]` — cash the seller's Gateway balance out
+ * to their **Arc wallet** via the SDK's instant same-chain `withdraw()`. Gates on
+ * `gateway.available` (not withdrawable — see ADR-0002); defaults to the full
+ * available balance. Reads SELLER_PRIVATE_KEY (never logged); on-chain.
+ */
+async function gatewayWithdraw(argv: string[], env: NetworkEnv): Promise<CliResult> {
+  const amount = argv.find((a) => !a.startsWith("--"));
+  const privateKey = env.SELLER_PRIVATE_KEY?.trim();
+  if (!privateKey) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "gateway:withdraw needs SELLER_PRIVATE_KEY set (the wallet receiving the USDC).\n",
+    };
+  }
+  const net = loadNetworkConfig(env);
+  const withdrawer = createGatewayWithdrawer({
+    privateKey: privateKey as Hex,
+    chain: net.gatewayChainName,
+    rpcUrl: net.rpcUrl,
+  });
+  const report = await runGatewayWithdraw(withdrawer, amount);
+  const text = formatWithdrawReport(report, net.explorerUrl);
+  return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
+}
+
+/**
+ * `arcpayments cctp:transfer <amount> --to <chain>` — bridge Arc USDC cross-chain
+ * via **CCTP v2** (burn on Arc → attestation → mint on the destination). CCTP
+ * BURNS USDC, so this validates before touching the bridge and never fabricates a
+ * hash. Destination defaults to `base-sepolia` (ADR-0002); recipient defaults to
+ * the seller's own address unless CCTP_RECIPIENT_ADDRESS is set. Reads
+ * SELLER_PRIVATE_KEY (never logged); on-chain.
+ */
+async function cctpTransfer(argv: string[], env: NetworkEnv): Promise<CliResult> {
+  const amount = positionals(argv, ["--to"])[0];
+  if (!amount) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr:
+        "cctp:transfer requires an <amount>, e.g. `arcpayments cctp:transfer 0.5 --to base-sepolia`\n",
+    };
+  }
+  const privateKey = env.SELLER_PRIVATE_KEY?.trim();
+  if (!privateKey) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "cctp:transfer needs SELLER_PRIVATE_KEY set (the wallet whose Arc USDC is burned).\n",
+    };
+  }
+  const toChain = flagValue(argv, "--to")?.trim() || "base-sepolia";
+  const recipient = env.CCTP_RECIPIENT_ADDRESS?.trim();
+  const bridge = createCctpBridge({
+    privateKey: privateKey as Hex,
+    ...(recipient ? { recipient } : {}),
+  });
+  const report = await runCctpTransfer(bridge, { amount, toChain });
+  const text = formatCctpReport(report);
   return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
 }
 

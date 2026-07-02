@@ -1,7 +1,10 @@
+import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
+import { BridgeChain, BridgeKit } from "@circle-fin/bridge-kit";
 import { GatewayClient } from "@circle-fin/x402-batching/client";
 import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
 import type { Address } from "viem";
 import type { BatchSettleOutcome, BatchSettler } from "./buyer";
+import type { CctpBridge, CctpBridgeParams, CctpBridgeResult } from "./cctp";
 import type { GatewayBalanceReader, GatewayBalances } from "./gateway-balance";
 import type { DepositResult, GatewayDepositor } from "./gateway-deposit";
 import { type SettlementResolver, extractTxHash } from "./gateway-settlement";
@@ -12,6 +15,7 @@ import type {
   SettlementRecord,
   Settler,
 } from "./paywall";
+import type { GatewayWithdrawer, WithdrawResult } from "./withdraw";
 
 /**
  * Circle Gateway settlement backend for the paywall (ADR-0001).
@@ -379,5 +383,112 @@ export function createGatewayInspector(opts: {
     balances: (address) => client.getBalances(address as never),
     transfers: (params) => client.searchTransfers((params ?? {}) as never),
     transfer: (id) => client.getTransferById(id),
+  };
+}
+
+/**
+ * Real Gateway **withdraw** backend (Stage 5, ADR-0002), wrapping the same
+ * `GatewayClient`. `availableFormatted()` reads `gateway.formattedAvailable` and
+ * `withdraw()` calls the SDK's instant same-chain `withdraw(amount)` (defaults:
+ * same chain, own address, maxFee 2.01), returning the on-chain `mintTxHash`.
+ * On-chain — never invoked in CI (the `GatewayWithdrawer` seam is mocked there).
+ */
+export function createGatewayWithdrawer(opts: {
+  privateKey: `0x${string}`;
+  chain: string;
+  rpcUrl?: string;
+}): GatewayWithdrawer {
+  const client = new GatewayClient({
+    chain: opts.chain as never,
+    privateKey: opts.privateKey,
+    ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+  });
+  return {
+    availableFormatted: async (): Promise<string> => {
+      const balances = await client.getBalances();
+      return balances.gateway.formattedAvailable;
+    },
+    withdraw: async (amount): Promise<WithdrawResult> => {
+      const r = await client.withdraw(amount);
+      return {
+        mintTxHash: r.mintTxHash,
+        amount: r.amount.toString(),
+        formattedAmount: r.formattedAmount,
+        sourceChain: r.sourceChain,
+        destinationChain: r.destinationChain,
+        recipient: r.recipient,
+      };
+    },
+  };
+}
+
+/**
+ * Map a CLI `--to` value to a bridge-kit destination chain. Kept as the only
+ * place the SDK's destination enum is named, so adding a chain is a one-line
+ * change (never hardcoded through the codebase). Base Sepolia is the Stage 5
+ * default (ADR-0002); Ethereum Sepolia is the documented fallback.
+ */
+export const CCTP_DEST_CHAINS: Record<string, BridgeChain> = {
+  "base-sepolia": BridgeChain.Base_Sepolia,
+  "ethereum-sepolia": BridgeChain.Ethereum_Sepolia,
+};
+
+export function resolveCctpDestChain(to: string): BridgeChain {
+  const chain = CCTP_DEST_CHAINS[to.trim().toLowerCase()];
+  if (!chain) {
+    const known = Object.keys(CCTP_DEST_CHAINS).join(", ");
+    throw new Error(`unknown CCTP destination "${to}" — supported: ${known}.`);
+  }
+  return chain;
+}
+
+/**
+ * Real **CCTP v2** bridge backend (Stage 5, ADR-0002), wrapping `BridgeKit` +
+ * `@circle-fin/adapter-viem-v2`. Bridges Arc USDC to a destination chain
+ * (burn on Arc → Circle attestation → mint on the destination). The source is
+ * Arc Testnet; the destination is chosen per-call via `--to`. Recipient defaults
+ * to the signer's own address unless one is supplied. **Burns USDC** — on-chain,
+ * never invoked in CI (the `CctpBridge` seam is mocked there).
+ */
+export function createCctpBridge(opts: {
+  privateKey: `0x${string}`;
+  sourceChain?: BridgeChain;
+  recipient?: string;
+}): CctpBridge {
+  const adapter = createViemAdapterFromPrivateKey({ privateKey: opts.privateKey });
+  const kit = new BridgeKit();
+  const from = { adapter, chain: opts.sourceChain ?? BridgeChain.Arc_Testnet };
+  return {
+    bridge: async (params: CctpBridgeParams): Promise<CctpBridgeResult> => {
+      const recipient = params.recipient ?? opts.recipient;
+      const to = {
+        adapter,
+        chain: resolveCctpDestChain(params.toChain),
+        ...(recipient ? { recipientAddress: recipient } : {}),
+      };
+      const result = await kit.bridge({ from, to, amount: params.amount } as never);
+      const errored = result.steps.find((s: { state: string }) => s.state === "error") as
+        | { errorMessage?: string }
+        | undefined;
+      return {
+        state: result.state,
+        ...(result.state === "error"
+          ? { error: errored?.errorMessage ?? "CCTP bridge failed." }
+          : {}),
+        steps: result.steps.map(
+          (s: {
+            name: string;
+            state: CctpBridgeResult["steps"][number]["state"];
+            txHash?: string;
+            explorerUrl?: string;
+          }) => ({
+            name: s.name,
+            state: s.state,
+            ...(s.txHash ? { txHash: s.txHash } : {}),
+            ...(s.explorerUrl ? { explorerUrl: s.explorerUrl } : {}),
+          }),
+        ),
+      };
+    },
   };
 }

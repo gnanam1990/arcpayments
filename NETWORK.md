@@ -88,9 +88,11 @@ A live `live-settle` run of 3 × $0.001 (buyer `0x824c…` → seller `0xdA6b…
   amount/timestamps). So `getTransferById` never returns an on-chain hash; on-chain proof = `status:
   completed` + balance delta. (The batch mint tx lives on the GatewayMinter `0x0022222…`, not attached
   per-transfer by Circle's API.)
-- **⚠️ Stage 5 caveat:** received funds show `available` = 0.003 but **`withdrawable` = 0**. So a credited
-  balance is *spendable within Gateway* immediately, but **not necessarily withdrawable to a wallet** yet —
-  Stage 5 must gate `withdraw()` on `withdrawable > 0`, not `available`.
+- **Balance buckets observed:** received funds show `available` = 0.003, `withdrawing` = 0, `withdrawable` = 0.
+  ✅ **CORRECTION (Stage 5, verified against the compiled SDK — supersedes the earlier "gate on `withdrawable`"
+  claim):** the instant `withdraw()` gates on **`available`**, NOT `withdrawable`. `withdrawable` stays `0`
+  in the normal flow and is consulted *only* by the emergency `completeTrustlessWithdrawal()` path, so a
+  `withdrawable > 0` gate would make `gateway:withdraw` permanently no-op for x402 earnings. Evidence below.
 
 ## Gateway settlement: cadence, no manual flush, status→spendable (Stage 4/5)
 
@@ -116,12 +118,36 @@ completed` (or `failed`). `received` = signature verified + recipient's **unifie
 ACCEPTED** (verified + queued) — NOT on-chain finality. Observed live (read-only): fresh transfers sit
 at `received`; the transfer object exposes no tx-hash until later.
 
-**3. Spendable/withdrawable → for Stage 5, gate on the BALANCE, not the transfer status.** The SDK
-`GatewayBalance` fields are authoritative: `available` = *"can be used"* (spend/pay within Gateway),
-`withdrawable` = *"ready to be withdrawn"* to a wallet on-chain, `withdrawing` = in progress. The
-recipient's unified balance credits ~instantly on acceptance, so **Stage 5 should read
-`getBalances().gateway.available` / `withdrawable` and withdraw when `> 0`** rather than coupling to a
-transfer status. Source: `@circle-fin/x402-batching/dist/client/index.d.ts` (`GatewayBalance` field docs).
+**3. `gateway:withdraw` gates on `available` — proven from the compiled SDK (not the `.d.ts` prose).**
+The `.d.ts` field descriptions were ambiguous, so this was resolved against the compiled runtime
+`@circle-fin/x402-batching/dist/client/index.mjs`. Three facts settle it:
+
+- **`getBalances()` (`:864-867`)** derives the buckets from Circle's ledger API:
+  ```js
+  const available    = parseUnits(balanceData.balance, 6);          // the spendable unified balance
+  const withdrawing  = parseUnits(balanceData.withdrawing ?? "0", 6);
+  const withdrawable = parseUnits(balanceData.withdrawable ?? "0", 6);
+  ```
+  `withdrawing`/`withdrawable` default to `"0"` and are only ever non-zero during the trustless flow.
+- **`withdraw()` — the instant path we use (`:1211`)** checks `available`, never `withdrawable`:
+  ```js
+  const balances = await this.getBalances();
+  if (balances.gateway.available < withdrawAmount)
+    throw new Error(`Insufficient available balance. Have: ${balances.gateway.formattedAvailable}, Need: ${amount}`);
+  ```
+  It then signs a `BurnIntent` (domain `GatewayWallet`/`1`) → `POST {gatewayApi}/transfer` → Circle
+  attests → mint on the destination (returns the real `mintTxHash`).
+- **`withdrawable` is consulted by exactly one method — the emergency `completeTrustlessWithdrawal()`
+  (`:1562`)**, and it is `0` until you first call `initiateTrustlessWithdrawal()` (which *itself* gates on
+  `available`, `:1523`) and wait out the ~7-day cooldown block:
+  ```js
+  if (balance.withdrawable === 0n) throw new Error("No withdrawable balance. Call initiateTrustlessWithdrawal() first.");
+  ```
+
+**Conclusion:** for the normal earn→cash-out flow, gate `gateway:withdraw` on **`available`** (Stage 5
+does). Gating on `withdrawable > 0` would refuse every real withdrawal, because `withdrawable` never
+leaves `0` unless the seller deliberately opts into the 7-day trustless/emergency path. The earlier
+Stage 4 "gate on `withdrawable`" note (above) was wrong and is corrected here.
 
 ## x402 signing domain — verified Stage 4 (2026-07-02) ⚠️ CORRECTS Stage 3 defaults
 
@@ -146,6 +172,29 @@ Source: `GET https://gateway-api-testnet.circle.com/v1/x402/supported` (2026-07-
 `@circle-fin/x402-batching@3.2.0` client dist. **Code reads these from env / the network module —
 never hardcoded.** The signing `verifyingContract` is the **GatewayWallet**, and the buyer must
 sign with `validBefore ≥ now + minValiditySeconds` for the Gateway to accept.
+
+## Seller cash-out: withdraw + CCTP — verified Stage 5 (2026-07-02, ADR-0002)
+
+All chain specifics below are **resolved by `@circle-fin/bridge-kit` from the chain name** — code
+references `BridgeChain.Arc_Testnet` / `Base_Sepolia`, never hardcodes addresses/domains.
+
+**Gateway withdraw (instant path).** `GatewayClient.withdraw(amount, { chain?, recipient?, maxFee? })`
+→ `WithdrawResult { mintTxHash, … }`. The runtime **checks `gateway.available`** (NOT `withdrawable`);
+`maxFee` default **2.01 USDC**. `withdrawable`/`withdrawing` are the **trustless** (~7-day, emergency)
+path only. ⚠️ So gate on `available`, not `withdrawable` (corrects the earlier Stage 4 note).
+Source: `@circle-fin/x402-batching@3.2.0/dist/client/index.{d.ts,mjs}`.
+
+**CCTP v2 (via bridge-kit, recommended; provider-cctp-v2 underneath).**
+
+| Chain | chainId | USDC | CCTP v2 domain | explorer |
+|-------|---------|------|----------------|----------|
+| Arc Testnet | 5042002 | `0x3600000000000000000000000000000000000000` | **26** | `https://testnet.arcscan.app/tx/{hash}` |
+| Base Sepolia (dest) | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` | **6** | `https://sepolia.basescan.org/tx/{hash}` |
+| Ethereum Sepolia (fallback) | 11155111 | (bridge-kit config) | 0 | etherscan |
+
+Arc CCTP v2 contracts: tokenMessenger `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`,
+messageTransmitter `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` (confirmations 1). Attestation +
+polling handled inside `kit.bridge()`. Source: `@circle-fin/bridge-kit@1.11.1/dist` chain configs.
 
 ## Mainnet (later — switch by changing RPC + chain ID only)
 

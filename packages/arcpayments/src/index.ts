@@ -92,8 +92,11 @@ export {
   type VerifyResult,
 } from "./paywall";
 export {
+  CCTP_DEST_CHAINS,
+  createCctpBridge,
   createGatewayBalanceReader,
   createGatewayDepositor,
+  createGatewayWithdrawer,
   createSettlementResolver,
   createGatewayInspector,
   type GatewayInspector,
@@ -104,8 +107,32 @@ export {
   GatewayBatchSettler,
   GatewaySettler,
   type GatewayVerifyResult,
+  resolveCctpDestChain,
   settlementOutcomeFrom,
 } from "./paywall-gateway";
+export {
+  type CctpBridge,
+  type CctpBridgeParams,
+  type CctpBridgeResult,
+  type CctpStep,
+  type CctpTransferReport,
+  type CctpTxRef,
+  formatCctpReport,
+  type RunCctpOptions,
+  runCctpTransfer,
+} from "./cctp";
+export {
+  formatWithdrawReport,
+  type GatewayWithdrawer,
+  runGatewayWithdraw,
+  type WithdrawReport,
+  type WithdrawResult,
+} from "./withdraw";
+export {
+  pollWithBackoff,
+  type PollOptions,
+  type PollOutcome,
+} from "./poll";
 export {
   describeTransferStatus,
   extractTxHash,

@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsup",
     "start": "bun run src/index.ts",
-    "live:settle": "bun run scripts/live-settle.ts"
+    "live:settle": "bun run scripts/live-settle.ts",
+    "live:cashout": "bun run scripts/live-cashout.ts"
   },
   "dependencies": {
     "arcpayments": "workspace:*",

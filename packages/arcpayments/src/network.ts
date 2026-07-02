@@ -1,6 +1,6 @@
 import { http, type Address, type Chain, createPublicClient, defineChain, getAddress } from "viem";
 
-/** EIP-712 domain identity of a token (for signing/verifying EIP-3009 authorizations). */
+/** EIP-712 domain identity (name/version) for signing/verifying authorizations. */
 export interface Eip712TokenDomain {
   name: string;
   version: string;
@@ -24,12 +24,18 @@ export interface NetworkConfig {
   usdcAddress: Address;
   /** Circle Gateway facilitator base URL (x402 verify/settle). */
   gatewayUrl: string;
+  /** GatewayWallet contract — the EIP-712 `verifyingContract` for batched x402 (NOT USDC). */
+  gatewayWallet: Address;
   /**
-   * USDC ERC-20 EIP-712 domain (name/version) used when signing/verifying
-   * authorizations. Production should confirm these from the Gateway `/supported`
-   * response; overridable via env. Defaults are a reasonable Circle-USDC value.
+   * x402 signing domain (name/version) for the Circle Gateway **batched** scheme.
+   * Confirmed from the Gateway `/supported` response (NETWORK.md, Stage 4):
+   * `GatewayWalletBatched` / `1` — NOT the USDC token's own domain. Env-overridable.
    */
-  usdcEip712: Eip712TokenDomain;
+  x402Domain: Eip712TokenDomain;
+  /** Minimum authorization validity Gateway requires (seconds). Buyer signs `validBefore ≥ now + this`. */
+  x402MinValiditySeconds: number;
+  /** x402 protocol version advertised/settled with Circle Gateway. */
+  x402Version: number;
 }
 
 /**
@@ -47,7 +53,10 @@ export const ARC_TESTNET_DEFAULTS: NetworkConfig = {
   faucetUrl: "https://faucet.circle.com",
   usdcAddress: "0x3600000000000000000000000000000000000000",
   gatewayUrl: "https://gateway-api-testnet.circle.com",
-  usdcEip712: { name: "USDC", version: "1" },
+  gatewayWallet: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+  x402Domain: { name: "GatewayWalletBatched", version: "1" },
+  x402MinValiditySeconds: 604800,
+  x402Version: 2,
 };
 
 /**
@@ -96,10 +105,23 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
 
   const usdcAddress = getAddress(env.ARC_USDC_ADDRESS?.trim() || ARC_TESTNET_DEFAULTS.usdcAddress);
   const gatewayUrl = env.ARC_GATEWAY_URL?.trim() || ARC_TESTNET_DEFAULTS.gatewayUrl;
-  const usdcEip712: Eip712TokenDomain = {
-    name: env.ARC_USDC_EIP712_NAME?.trim() || ARC_TESTNET_DEFAULTS.usdcEip712.name,
-    version: env.ARC_USDC_EIP712_VERSION?.trim() || ARC_TESTNET_DEFAULTS.usdcEip712.version,
+  const gatewayWallet = getAddress(
+    env.ARC_GATEWAY_WALLET?.trim() || ARC_TESTNET_DEFAULTS.gatewayWallet,
+  );
+  const x402Domain: Eip712TokenDomain = {
+    name: env.ARC_X402_DOMAIN_NAME?.trim() || ARC_TESTNET_DEFAULTS.x402Domain.name,
+    version: env.ARC_X402_DOMAIN_VERSION?.trim() || ARC_TESTNET_DEFAULTS.x402Domain.version,
   };
+  const x402MinValiditySeconds = intFromEnv(
+    env.ARC_X402_MIN_VALIDITY_SECONDS,
+    ARC_TESTNET_DEFAULTS.x402MinValiditySeconds,
+    "ARC_X402_MIN_VALIDITY_SECONDS",
+  );
+  const x402Version = intFromEnv(
+    env.ARC_X402_VERSION,
+    ARC_TESTNET_DEFAULTS.x402Version,
+    "ARC_X402_VERSION",
+  );
 
   return {
     name,
@@ -110,8 +132,22 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
     faucetUrl,
     usdcAddress,
     gatewayUrl,
-    usdcEip712,
+    gatewayWallet,
+    x402Domain,
+    x402MinValiditySeconds,
+    x402Version,
   };
+}
+
+/** Parse a positive-integer env var, falling back to a default; throws on invalid. */
+function intFromEnv(raw: string | undefined, fallback: number, key: string): number {
+  const trimmed = raw?.trim();
+  if (!trimmed) return fallback;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${key}: "${trimmed}" — expected a positive integer.`);
+  }
+  return parsed;
 }
 
 /** Build a viem {@link Chain} from a {@link NetworkConfig}. */

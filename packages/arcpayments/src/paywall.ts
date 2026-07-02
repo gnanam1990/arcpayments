@@ -69,9 +69,17 @@ export interface PaywallConfig {
   payTo: Address;
   caip2: string;
   asset: Address;
+  /**
+   * EIP-712 `verifyingContract` the buyer signs against. For Circle Gateway
+   * batched x402 this is the **GatewayWallet** contract — NOT the USDC token
+   * (confirmed in NETWORK.md, Stage 4). Never inline this address.
+   */
+  verifyingContract: Address;
   /** USDC ERC-20 decimals (must be the 6-decimal constant, never 18). */
   usdcDecimals: number;
+  /** EIP-712 domain name/version (Gateway: `GatewayWalletBatched` / `1`). */
   eip712: { name: string; version: string };
+  /** How long the authorization is valid (seconds). Gateway requires ≥ its minValiditySeconds. */
   maxTimeoutSeconds?: number;
 }
 
@@ -96,7 +104,12 @@ export function buildPaymentRequirements(config: PaywallConfig): PaymentRequirem
     amount: priceToBaseUnits(config.price, config.usdcDecimals).toString(),
     payTo: getAddress(config.payTo),
     maxTimeoutSeconds: config.maxTimeoutSeconds ?? 60,
-    extra: { name: config.eip712.name, version: config.eip712.version, verifyingContract: asset },
+    extra: {
+      name: config.eip712.name,
+      version: config.eip712.version,
+      // Gateway batched: the GatewayWallet, not the USDC asset.
+      verifyingContract: getAddress(config.verifyingContract),
+    },
   };
 }
 
@@ -113,16 +126,22 @@ function domainFor(requirements: PaymentRequirements) {
     name: requirements.extra.name,
     version: requirements.extra.version,
     chainId: chainIdFromCaip2(requirements.network),
-    verifyingContract: getAddress(requirements.asset),
+    // Sign against extra.verifyingContract (GatewayWallet for Gateway batched) — NOT the asset.
+    verifyingContract: getAddress(requirements.extra.verifyingContract),
   } as const;
 }
 
-/** Options for signing a payment (minimal test payer; the buyer agent is Stage 4). */
+/** x402 protocol version used in signed payloads (Circle Gateway batched = 2). */
+export const X402_VERSION = 2;
+
+/** Options for signing a payment (used by the buyer agent + minimal test payer). */
 export interface SignExactOptions {
   nonce: Hex;
   now?: number;
   validAfter?: number;
   validBefore?: number;
+  /** x402 protocol version to stamp on the payload. Defaults to {@link X402_VERSION}. */
+  x402Version?: number;
 }
 
 /**
@@ -163,7 +182,7 @@ export async function signExactPayment(
     },
   });
   return {
-    x402Version: 1,
+    x402Version: options.x402Version ?? X402_VERSION,
     scheme: "exact",
     network: requirements.network,
     payload: { signature, authorization },

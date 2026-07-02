@@ -20,6 +20,8 @@ import {
 const BUYER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as const;
 const buyer = privateKeyToAccount(BUYER_KEY);
 const SELLER = "0x00000000000000000000000000000000dEAD0001" as const;
+const GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" as const;
+const USDC = "0x3600000000000000000000000000000000000000" as const;
 
 function nonce(byte: string): Hex {
   return `0x${byte.repeat(32)}` as Hex;
@@ -30,9 +32,10 @@ function requirements(price = "$0.001"): PaymentRequirements {
     price,
     payTo: SELLER,
     caip2: "eip155:5042002",
-    asset: "0x3600000000000000000000000000000000000000",
+    asset: USDC,
+    verifyingContract: GATEWAY_WALLET,
     usdcDecimals: 6,
-    eip712: { name: "USDC", version: "1" },
+    eip712: { name: "GatewayWalletBatched", version: "1" },
     maxTimeoutSeconds: 60,
   });
 }
@@ -64,8 +67,13 @@ describe("buildPaymentRequirements", () => {
     expect(r.network).toBe("eip155:5042002");
     expect(r.amount).toBe("1000");
     expect(r.payTo).toBe(getAddress(SELLER));
-    expect(r.extra.verifyingContract).toBe(r.asset);
-    expect(r.extra.name).toBe("USDC");
+    expect(r.extra.name).toBe("GatewayWalletBatched");
+  });
+
+  it("signs against the GatewayWallet as verifyingContract, NOT the USDC asset (Part A)", () => {
+    const r = requirements();
+    expect(r.extra.verifyingContract).toBe(getAddress(GATEWAY_WALLET));
+    expect(r.extra.verifyingContract).not.toBe(r.asset);
   });
 });
 

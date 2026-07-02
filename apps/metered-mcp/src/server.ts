@@ -51,8 +51,11 @@ export function buildSellerPaywall(
       payTo: sellerAddress,
       caip2: net.caip2,
       asset: net.usdcAddress,
+      verifyingContract: net.gatewayWallet,
       usdcDecimals: USDC_ERC20_DECIMALS,
-      eip712: net.usdcEip712,
+      eip712: net.x402Domain,
+      // Gateway requires validBefore ≥ now + minValiditySeconds.
+      maxTimeoutSeconds: net.x402MinValiditySeconds,
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,

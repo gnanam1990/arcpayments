@@ -13,8 +13,9 @@ function record(payer: string): SettlementRecord {
     payTo: "0x00000000000000000000000000000000dEAD0001",
     caip2: "eip155:5042002",
     asset: "0x3600000000000000000000000000000000000000",
+    verifyingContract: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
     usdcDecimals: 6,
-    eip712: { name: "USDC", version: "1" },
+    eip712: { name: "GatewayWalletBatched", version: "1" },
   });
   return {
     id: "stl_1",

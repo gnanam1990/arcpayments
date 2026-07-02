@@ -4,6 +4,7 @@ import type { Address } from "viem";
 import type { BatchSettleOutcome, BatchSettler } from "./buyer";
 import type { GatewayBalanceReader, GatewayBalances } from "./gateway-balance";
 import type { DepositResult, GatewayDepositor } from "./gateway-deposit";
+import { type SettlementResolver, extractTxHash } from "./gateway-settlement";
 import type {
   ExactPaymentPayload,
   PaymentRequirements,
@@ -321,6 +322,31 @@ export function createGatewayBalanceReader(opts: {
         gatewayWithdrawingFormatted: b.gateway.formattedWithdrawing,
         gatewayWithdrawableFormatted: b.gateway.formattedWithdrawable,
       };
+    },
+  };
+}
+
+/**
+ * Real settlement resolver — the **same** `GatewayClient` family used elsewhere.
+ * Resolves a Circle settlement/transfer UUID to its on-chain transaction hash via
+ * `GatewayClient.getTransferById(id)`. On-chain/API — never invoked in CI.
+ */
+export function createSettlementResolver(opts: {
+  privateKey: `0x${string}`;
+  chain: string;
+  rpcUrl?: string;
+}): SettlementResolver {
+  const client = new GatewayClient({
+    chain: opts.chain as never,
+    privateKey: opts.privateKey,
+    ...(opts.rpcUrl ? { rpcUrl: opts.rpcUrl } : {}),
+  });
+  return {
+    getTransfer: async (id) => {
+      const raw = (await client.getTransferById(id)) as unknown as Record<string, unknown>;
+      const status = typeof raw.status === "string" ? raw.status : "unknown";
+      const txHash = extractTxHash(raw);
+      return { id, status, ...(txHash ? { txHash } : {}), raw };
     },
   };
 }

@@ -94,6 +94,7 @@ export {
 export {
   createGatewayBalanceReader,
   createGatewayDepositor,
+  createSettlementResolver,
   describeGatewayError,
   describeThrownError,
   type FacilitatorLike,
@@ -103,6 +104,15 @@ export {
   type GatewayVerifyResult,
   settlementOutcomeFrom,
 } from "./paywall-gateway";
+export {
+  extractTxHash,
+  isOnChainTxHash,
+  type ResolveSettlementOptions,
+  resolveSettlementTxHash,
+  type SettlementResolver,
+  type TransferInfo,
+  type TransferStatus,
+} from "./gateway-settlement";
 export {
   type DepositResult,
   formatGatewayDepositReport,

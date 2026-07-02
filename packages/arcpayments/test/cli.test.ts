@@ -3,12 +3,14 @@ import { run } from "../src/cli";
 import { VERSION } from "../src/version";
 
 describe("arcpayments --help", () => {
-  it("exits 0 and prints usage including the doctor command", async () => {
+  it("exits 0 and prints usage including every command", async () => {
     const result = await run(["--help"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Usage");
     expect(result.stdout).toContain("arcpayments");
     expect(result.stdout).toContain("doctor");
+    expect(result.stdout).toContain("wallet:new");
+    expect(result.stdout).toContain("faucet");
   });
 
   it("treats -h and no args the same as --help (exit 0)", async () => {

@@ -1,4 +1,4 @@
-import { type Address, http, type Chain, createPublicClient, defineChain, getAddress } from "viem";
+import { http, type Address, type Chain, createPublicClient, defineChain, getAddress } from "viem";
 
 /** EIP-712 domain identity of a token (for signing/verifying EIP-3009 authorizations). */
 export interface Eip712TokenDomain {

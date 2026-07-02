@@ -147,6 +147,29 @@ Source: `GET https://gateway-api-testnet.circle.com/v1/x402/supported` (2026-07-
 never hardcoded.** The signing `verifyingContract` is the **GatewayWallet**, and the buyer must
 sign with `validBefore ≥ now + minValiditySeconds` for the Gateway to accept.
 
+## Seller cash-out: withdraw + CCTP — verified Stage 5 (2026-07-02, ADR-0002)
+
+All chain specifics below are **resolved by `@circle-fin/bridge-kit` from the chain name** — code
+references `BridgeChain.Arc_Testnet` / `Base_Sepolia`, never hardcodes addresses/domains.
+
+**Gateway withdraw (instant path).** `GatewayClient.withdraw(amount, { chain?, recipient?, maxFee? })`
+→ `WithdrawResult { mintTxHash, … }`. The runtime **checks `gateway.available`** (NOT `withdrawable`);
+`maxFee` default **2.01 USDC**. `withdrawable`/`withdrawing` are the **trustless** (~7-day, emergency)
+path only. ⚠️ So gate on `available`, not `withdrawable` (corrects the earlier Stage 4 note).
+Source: `@circle-fin/x402-batching@3.2.0/dist/client/index.{d.ts,mjs}`.
+
+**CCTP v2 (via bridge-kit, recommended; provider-cctp-v2 underneath).**
+
+| Chain | chainId | USDC | CCTP v2 domain | explorer |
+|-------|---------|------|----------------|----------|
+| Arc Testnet | 5042002 | `0x3600000000000000000000000000000000000000` | **26** | `https://testnet.arcscan.app/tx/{hash}` |
+| Base Sepolia (dest) | 84532 | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` | **6** | `https://sepolia.basescan.org/tx/{hash}` |
+| Ethereum Sepolia (fallback) | 11155111 | (bridge-kit config) | 0 | etherscan |
+
+Arc CCTP v2 contracts: tokenMessenger `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`,
+messageTransmitter `0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275` (confirmations 1). Attestation +
+polling handled inside `kit.bridge()`. Source: `@circle-fin/bridge-kit@1.11.1/dist` chain configs.
+
 ## Mainnet (later — switch by changing RPC + chain ID only)
 
 | Key | Value | Status |

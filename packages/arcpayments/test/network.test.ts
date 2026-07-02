@@ -5,6 +5,7 @@ import {
   createArcPublicClient,
   defineArcChain,
   loadNetworkConfig,
+  USDC_ERC20_DECIMALS,
 } from "../src/network";
 
 describe("loadNetworkConfig", () => {
@@ -14,6 +15,13 @@ describe("loadNetworkConfig", () => {
     expect(config.rpcUrl).toBe("https://rpc.testnet.arc.network");
     expect(config.chainId).toBe(5042002);
     expect(config.explorerUrl).toBe("https://testnet.arcscan.app");
+    expect(config.faucetUrl).toBe("https://faucet.circle.com");
+  });
+
+  it("reads the faucet URL from env when provided", () => {
+    expect(loadNetworkConfig({ ARC_FAUCET_URL: "https://faucet.example.test" }).faucetUrl).toBe(
+      "https://faucet.example.test",
+    );
   });
 
   it("returns the values configured via env (network switch is env-only)", () => {
@@ -30,6 +38,14 @@ describe("loadNetworkConfig", () => {
   it("throws on a non-integer ARC_CHAIN_ID rather than guessing", () => {
     expect(() => loadNetworkConfig({ ARC_CHAIN_ID: "not-a-number" })).toThrow(/ARC_CHAIN_ID/);
     expect(() => loadNetworkConfig({ ARC_CHAIN_ID: "-1" })).toThrow(/ARC_CHAIN_ID/);
+  });
+});
+
+describe("USDC decimals constants", () => {
+  it("keeps native gas (18) and ERC-20 (6) distinct so nothing downstream flips them", () => {
+    expect(ARC_NATIVE_GAS_DECIMALS).toBe(18);
+    expect(USDC_ERC20_DECIMALS).toBe(6);
+    expect(ARC_NATIVE_GAS_DECIMALS).not.toBe(USDC_ERC20_DECIMALS);
   });
 });
 

@@ -10,6 +10,8 @@ export interface NetworkConfig {
   chainId: number;
   /** Block explorer base URL. */
   explorerUrl: string;
+  /** Testnet faucet URL. */
+  faucetUrl: string;
 }
 
 /**
@@ -23,14 +25,21 @@ export const ARC_TESTNET_DEFAULTS: NetworkConfig = {
   rpcUrl: "https://rpc.testnet.arc.network",
   chainId: 5042002,
   explorerUrl: "https://testnet.arcscan.app",
+  faucetUrl: "https://faucet.circle.com",
 };
 
 /**
  * Decimals for USDC **as Arc's native gas token** — 18, for EVM gas math
- * (NETWORK.md). This is deliberately NOT the USDC **ERC-20** token, which is
- * 6 decimals. Do not conflate the two when handling amounts in later stages.
+ * (NETWORK.md). This is deliberately NOT {@link USDC_ERC20_DECIMALS}. Both scales
+ * live here as named constants so nothing downstream guesses or flips them.
  */
 export const ARC_NATIVE_GAS_DECIMALS = 18;
+
+/**
+ * Decimals for the USDC **ERC-20 token** — 6. Used for x402 payment amounts
+ * (Stage 3+). Never use this for native/gas balances — see {@link ARC_NATIVE_GAS_DECIMALS}.
+ */
+export const USDC_ERC20_DECIMALS = 6;
 
 /** Minimal env shape the network module reads. */
 export type NetworkEnv = Record<string, string | undefined>;
@@ -45,6 +54,7 @@ export type NetworkEnv = Record<string, string | undefined>;
 export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig {
   const rpcUrl = env.ARC_RPC_URL?.trim() || ARC_TESTNET_DEFAULTS.rpcUrl;
   const explorerUrl = env.ARC_EXPLORER_URL?.trim() || ARC_TESTNET_DEFAULTS.explorerUrl;
+  const faucetUrl = env.ARC_FAUCET_URL?.trim() || ARC_TESTNET_DEFAULTS.faucetUrl;
 
   let chainId = ARC_TESTNET_DEFAULTS.chainId;
   const rawChainId = env.ARC_CHAIN_ID?.trim();
@@ -62,7 +72,7 @@ export function loadNetworkConfig(env: NetworkEnv = process.env): NetworkConfig 
     env.ARC_NETWORK_NAME?.trim() ||
     (chainId === ARC_TESTNET_DEFAULTS.chainId ? "arc-testnet" : `arc-${chainId}`);
 
-  return { name, rpcUrl, chainId, explorerUrl };
+  return { name, rpcUrl, chainId, explorerUrl, faucetUrl };
 }
 
 /** Build a viem {@link Chain} from a {@link NetworkConfig}. */

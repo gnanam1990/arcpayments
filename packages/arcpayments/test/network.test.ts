@@ -32,6 +32,34 @@ describe("loadNetworkConfig", () => {
     expect(config.caip2).toBe("eip155:5042002");
   });
 
+  it("provides the confirmed Gateway-batched x402 signing domain (Part A)", () => {
+    const config = loadNetworkConfig({});
+    // verifyingContract is the GatewayWallet, NOT the USDC token.
+    expect(config.gatewayWallet).toBe("0x0077777d7EBA4688BDeF3E311b846F25870A19B9");
+    expect(config.x402Domain).toEqual({ name: "GatewayWalletBatched", version: "1" });
+    expect(config.x402MinValiditySeconds).toBe(604800);
+    expect(config.x402Version).toBe(2);
+    expect(config.gatewayChainName).toBe("arcTestnet");
+  });
+
+  it("reads the Gateway SDK chain name from env (env-only testnet→mainnet)", () => {
+    expect(loadNetworkConfig({ ARC_GATEWAY_CHAIN_NAME: "arc" }).gatewayChainName).toBe("arc");
+  });
+
+  it("overrides the x402 domain + validity + version from env", () => {
+    const config = loadNetworkConfig({
+      ARC_GATEWAY_WALLET: "0x000000000000000000000000000000000000beef",
+      ARC_X402_DOMAIN_NAME: "OtherDomain",
+      ARC_X402_DOMAIN_VERSION: "2",
+      ARC_X402_MIN_VALIDITY_SECONDS: "60",
+      ARC_X402_VERSION: "1",
+    });
+    expect(config.gatewayWallet).toBe(getAddress("0x000000000000000000000000000000000000beef"));
+    expect(config.x402Domain).toEqual({ name: "OtherDomain", version: "2" });
+    expect(config.x402MinValiditySeconds).toBe(60);
+    expect(config.x402Version).toBe(1);
+  });
+
   it("derives the CAIP-2 id from the configured chain ID (env-only switch)", () => {
     expect(loadNetworkConfig({ ARC_CHAIN_ID: "5042" }).caip2).toBe("eip155:5042");
   });

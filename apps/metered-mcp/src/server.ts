@@ -18,7 +18,7 @@ import { resolveSellerAddress } from "./identity";
 /** Server identity advertised to MCP clients. */
 export const SERVER_INFO = {
   name: "metered-mcp",
-  version: "0.3.0",
+  version: "0.4.0",
 } as const;
 
 /** The paid tool's name and price (not a magic number inline). */
@@ -51,8 +51,11 @@ export function buildSellerPaywall(
       payTo: sellerAddress,
       caip2: net.caip2,
       asset: net.usdcAddress,
+      verifyingContract: net.gatewayWallet,
       usdcDecimals: USDC_ERC20_DECIMALS,
-      eip712: net.usdcEip712,
+      eip712: net.x402Domain,
+      // Gateway requires validBefore ≥ now + minValiditySeconds.
+      maxTimeoutSeconds: net.x402MinValiditySeconds,
     }),
     verifier: new LocalExactVerifier(new InMemoryNonceStore()),
     queue,

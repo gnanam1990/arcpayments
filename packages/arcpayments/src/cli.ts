@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
 import { faucetCheck, formatFaucetInstructions } from "./faucet";
+import { formatGatewayDepositReport, runGatewayDeposit } from "./gateway-deposit";
 import { type NetworkEnv, loadNetworkConfig } from "./network";
+import { createGatewayDepositor } from "./paywall-gateway";
 import { runAddPaywall } from "./paywall-generator";
 import { VERSION } from "./version";
 import { formatWalletNewResult, runWalletNew, walletTargetsFromEnv } from "./wallet";
@@ -30,6 +32,7 @@ Commands:
   doctor                    Diagnose your Arc setup (runtime, RPC, chain ID, wallet)
   wallet:new [--force]      Generate buyer + seller keys into a gitignored .env
   faucet [--check <addr>]   Print faucet URL + addresses, or check a balance
+  gateway:deposit <amount>  Deposit buyer USDC into Circle Gateway (needs BUYER_PRIVATE_KEY)
   add paywall <name>        Scaffold an x402-gated tool (--price, --out, --force)
 
 Options:
@@ -70,6 +73,10 @@ export async function run(argv: string[], env: NetworkEnv = process.env): Promis
 
   if (command === "faucet") {
     return faucet(rest, env);
+  }
+
+  if (command === "gateway:deposit") {
+    return gatewayDeposit(rest, env);
   }
 
   if (command === "add" && rest[0] === "paywall") {
@@ -144,6 +151,39 @@ function walletNew(argv: string[]): CliResult {
   const result = runWalletNew(deps);
   const text = formatWalletNewResult(result);
   return result.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
+}
+
+/**
+ * `arcpayments gateway:deposit <amount>` — deposit the buyer's USDC into Circle
+ * Gateway so the x402 loop can settle. Reads BUYER_PRIVATE_KEY from env (never
+ * logged). This is an on-chain action; endpoints/chain come from the network module.
+ */
+async function gatewayDeposit(argv: string[], env: NetworkEnv): Promise<CliResult> {
+  const amount = argv.find((a) => !a.startsWith("--"));
+  if (!amount) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "gateway:deposit requires an <amount>, e.g. `arcpayments gateway:deposit 10`\n",
+    };
+  }
+  const privateKey = env.BUYER_PRIVATE_KEY?.trim();
+  if (!privateKey) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "gateway:deposit needs BUYER_PRIVATE_KEY set (the wallet whose USDC is deposited).\n",
+    };
+  }
+  const net = loadNetworkConfig(env);
+  const depositor = createGatewayDepositor({
+    privateKey: privateKey as Hex,
+    chain: net.gatewayChainName,
+    rpcUrl: net.rpcUrl,
+  });
+  const report = await runGatewayDeposit(depositor, amount);
+  const text = formatGatewayDepositReport(report);
+  return report.ok ? { code: 0, stdout: text, stderr: "" } : { code: 1, stdout: "", stderr: text };
 }
 
 /** `arcpayments faucet [--check <address>]` — instructions or a balance check. */

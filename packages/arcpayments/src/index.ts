@@ -86,7 +86,34 @@ export {
   signExactPayment,
   type VerifyResult,
 } from "./paywall";
-export { type FacilitatorLike, GatewaySettler } from "./paywall-gateway";
+export {
+  createGatewayDepositor,
+  type FacilitatorLike,
+  GatewayBatchSettler,
+  GatewaySettler,
+} from "./paywall-gateway";
+export {
+  type DepositResult,
+  formatGatewayDepositReport,
+  type GatewayDepositor,
+  type GatewayDepositReport,
+  runGatewayDeposit,
+} from "./gateway-deposit";
+export {
+  type BatchSettleOutcome,
+  type BatchSettler,
+  flushBatch,
+  guardTransport,
+  type LoopStop,
+  type PaidCallResult,
+  type PaidResponse,
+  type PaidToolTransport,
+  type PayForCallOptions,
+  payForCall,
+  type PaymentLoopResult,
+  startPaymentLoop,
+  type StartPaymentLoopOptions,
+} from "./buyer";
 export {
   type AddPaywallDeps,
   type AddPaywallResult,

@@ -2,7 +2,7 @@
   "name": "metered-mcp",
   "version": "0.0.1",
   "private": true,
-  "description": "Showcase app (customer zero): a metered MCP tool server where an AI agent pays sub-cent USDC on Arc per tool call. Stage 1: a bare MCP server with one free tool (no payment gating yet).",
+  "description": "Showcase app (customer zero): a metered MCP tool server where an AI agent pays sub-cent USDC on Arc per tool call. Free echo + paid premium_echo (x402); buyer agent with a capped payment loop.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsup",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "live:settle": "bun run scripts/live-settle.ts"
   },
   "dependencies": {
     "arcpayments": "workspace:*",

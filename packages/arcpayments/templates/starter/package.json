@@ -1,0 +1,36 @@
+{
+  "name": "__APP_NAME__",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A metered MCP server + buyer agent on Arc testnet, scaffolded by arcpayments. Not affiliated with Circle/Arc.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "__APP_NAME__": "./src/index.ts"
+  },
+  "scripts": {
+    "doctor": "arcpayments doctor",
+    "wallet:new": "arcpayments wallet:new",
+    "faucet": "arcpayments faucet",
+    "start": "tsx src/index.ts",
+    "buyer": "tsx src/buyer.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsup src/index.ts --format esm --target node20 --clean",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "arcpayments": "^0.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "viem": "^2.54.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

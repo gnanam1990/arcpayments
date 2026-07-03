@@ -31,3 +31,26 @@ jobs:
 
       - name: Build
         run: bun run build
+
+  generation-smoke:
+    # Generate a project with `arcpayments create`, then INSTALL + BUILD + run ITS
+    # OWN tests against the local build — so a broken template can never ship.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install (workspace)
+        run: bun install --frozen-lockfile
+
+      - name: Generate a project and run its tests
+        run: bash scripts/generation-smoke.sh

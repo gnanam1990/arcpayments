@@ -181,3 +181,18 @@ export {
   renderPaywallTemplate,
   runAddPaywall,
 } from "./paywall-generator";
+export {
+  checkBudget,
+  checkPerPaymentMax,
+  checkRate,
+  checkRecipientAllowlist,
+  type GuardDecision,
+  type GuardDeny,
+  GuardDeniedError,
+  loadSpendGuardConfig,
+  normalizeAddress,
+  type PaymentIntent,
+  SpendGuard,
+  type SpendGuardConfig,
+  type SpendGuardDeps,
+} from "./spend-guard";

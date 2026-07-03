@@ -8,7 +8,13 @@ import {
   type SettlementRecord,
   signExactPayment,
 } from "./paywall";
+import { GuardDeniedError, type PaymentIntent, type SpendGuard } from "./spend-guard";
 import type { Wallet } from "./wallet";
+
+/** Build the concrete payment intent the guards inspect, from a 402 challenge. */
+function intentFromRequirements(requirements: PaymentRequirements): PaymentIntent {
+  return { amount: BigInt(requirements.amount), recipient: requirements.payTo };
+}
 
 /**
  * Buyer agent primitives (Stage 4): drive the x402 challenge → sign → retry flow,
@@ -64,6 +70,11 @@ export interface PayForCallOptions {
   wallet: Wallet;
   nonce: () => Hex;
   now?: () => number;
+  /**
+   * Optional safety kernel. When set, EVERY payment is authorized here **before**
+   * signing; a denial throws {@link GuardDeniedError} and nothing is signed.
+   */
+  guard?: SpendGuard;
 }
 
 /** Outcome of one paid call. */
@@ -92,6 +103,14 @@ export async function payForCall(options: PayForCallOptions): Promise<PaidCallRe
     throw new Error(`expected a challenge, got: ${first.kind}`);
   }
 
+  // SAFETY KERNEL: authorize the real payment params BEFORE signing. No bypass —
+  // a denial throws and nothing is signed or sent.
+  const intent = intentFromRequirements(first.requirements);
+  if (options.guard) {
+    const decision = await options.guard.authorize(intent);
+    if (!decision.allowed) throw new GuardDeniedError(decision);
+  }
+
   const now = nowSeconds(options.now);
   const payment = await signExactPayment(options.wallet.getAccount(), first.requirements, {
     nonce: options.nonce(),
@@ -106,6 +125,8 @@ export async function payForCall(options: PayForCallOptions): Promise<PaidCallRe
   if (second.kind !== "result") {
     throw new Error(`payment not accepted: ${second.kind}`);
   }
+  // Payment executed — advance the guard's counters (budget/rate).
+  options.guard?.record(intent);
   return { paid: true, amount: first.requirements.amount, content: second.content, payment };
 }
 
@@ -113,6 +134,7 @@ export async function payForCall(options: PayForCallOptions): Promise<PaidCallRe
 export type LoopStop =
   | "maxCalls"
   | "maxTotalSpend"
+  | "guardDenied"
   | "rejected"
   | "settlementError"
   | "noChallenge";
@@ -127,6 +149,12 @@ export interface StartPaymentLoopOptions {
   maxCalls: number;
   /** Hard cap on cumulative spend (base units). The loop never exceeds this. */
   maxTotalSpend: bigint;
+  /**
+   * Optional safety kernel (Stage 6). When set, EVERY iteration's payment is
+   * authorized here **before** signing; a denial hard-stops the loop
+   * (`stoppedBy: "guardDenied"`) with the guard's reason — no payment is signed.
+   */
+  guard?: SpendGuard;
   /** Optional batch flush: settle every `flushEvery` calls via `batchSettler`. */
   queue?: SettlementQueue;
   batchSettler?: BatchSettler;
@@ -173,6 +201,18 @@ export async function startPaymentLoop(
       break;
     }
 
+    // SAFETY KERNEL: authorize BEFORE signing. A denial hard-stops the loop —
+    // there is no path around this, regardless of what the agent/transport says.
+    const intent = intentFromRequirements(peek.requirements);
+    if (options.guard) {
+      const decision = await options.guard.authorize(intent);
+      if (!decision.allowed) {
+        stoppedBy = "guardDenied";
+        reason = `${decision.guard}: ${decision.reason}`;
+        break;
+      }
+    }
+
     const now = nowSeconds(options.now);
     const payment = await signExactPayment(options.wallet.getAccount(), peek.requirements, {
       nonce: options.nonce(),
@@ -193,6 +233,8 @@ export async function startPaymentLoop(
 
     calls += 1;
     totalSpent += amount;
+    // Payment executed — advance the guard's counters (budget/rate).
+    options.guard?.record(intent);
 
     if (
       options.queue &&

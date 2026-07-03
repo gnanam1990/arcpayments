@@ -22,7 +22,7 @@ describe("package.json is publish-ready", () => {
   });
 
   it("declares bin, module exports, types, engines, repository, and MIT", () => {
-    expect(pkg.bin.arcpayments).toBe("./dist/bin.js");
+    expect(pkg.bin.arcpayments).toBe("dist/bin.js");
     expect(pkg.exports["."]).toMatchObject({
       types: "./dist/index.d.ts",
       import: "./dist/index.js",
@@ -47,6 +47,18 @@ describe("package.json is publish-ready", () => {
     // the dist entries are extension-scoped to js + d.ts (maps excluded even if emitted)
     expect(files).toContain("dist/**/*.js");
     expect(files).toContain("dist/**/*.d.ts");
+  });
+
+  it("has a CLI bin that SURVIVES npm publish (no leading ./, ships in dist)", () => {
+    // npm's bin normalization strips an entry whose value starts with "./"
+    // ("bin[arcpayments] script name … was invalid and removed"), which would break
+    // `npx arcpayments` and every CLI command in the published package.
+    const bin = pkg.bin.arcpayments;
+    expect(bin, "bin entry must be present").toBeTruthy();
+    expect(bin.startsWith("./"), "bin must NOT start with ./ (npm strips it)").toBe(false);
+    expect(bin).toMatch(/^dist\/.+\.js$/); // points into the shipped dist/
+    // and the bin file is actually covered by the files allowlist, so it ships
+    expect(pkg.files.some((f: string) => f.startsWith("dist"))).toBe(true);
   });
 
   it("runs the full gate on prepublishOnly (typecheck + lint + test + build)", () => {

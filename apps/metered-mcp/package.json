@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsup",
     "start": "bun run src/index.ts",
+    "dashboard": "bun run src/dashboard/run.ts",
     "live:settle": "bun run scripts/live-settle.ts",
     "live:cashout": "bun run scripts/live-cashout.ts"
   },

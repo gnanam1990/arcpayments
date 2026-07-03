@@ -6,7 +6,8 @@ export default defineConfig({
   target: "node20",
   dts: true,
   clean: true,
-  sourcemap: true,
+  // No source maps in the published tarball (keeps `src` off npm; nothing at runtime needs them).
+  sourcemap: false,
   // bin.ts declares its own shebang; keep it in the emitted output.
   banner: {},
 });

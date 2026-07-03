@@ -1,6 +1,6 @@
 {
   "name": "arcpayments",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Community toolkit for building on Arc (not affiliated with Circle/Arc) — a scaffolder + CLI + library for agentic commerce: wallets, x402 paywalls, Circle Gateway nanopayment batching, cross-chain withdrawal (CCTP), and a spend-guard safety kernel.",
   "license": "MIT",
   "type": "module",
@@ -39,7 +39,13 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist/**/*.js", "dist/**/*.d.ts", "templates", "README.md", "LICENSE"],
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
   "publishConfig": {
     "access": "public"
   },

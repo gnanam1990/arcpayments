@@ -16,6 +16,10 @@ export default defineConfig({
   },
   test: {
     include: ["packages/**/test/**/*.test.ts", "apps/**/test/**/*.test.ts"],
+    // Scaffolder templates are shipped verbatim to generated projects — they are not
+    // part of THIS repo's test/lint/build surface (their `arcpayments` import resolves
+    // to the published package, not our source).
+    exclude: ["**/node_modules/**", "**/dist/**", "**/templates/**"],
     passWithNoTests: false,
   },
 });

@@ -1,15 +1,15 @@
 # arcpayments
 
-**Agentic-commerce tooling for Arc.** A scaffolder + CLI to build apps where AI agents pay
-sub-cent USDC on [Arc](https://www.arc.io) — wallets, x402 paywalls, Gateway nanopayment batching,
-cross-chain withdrawal, and spend guards, wired for you.
+**Community toolkit for building on Arc — not affiliated with Circle or Arc.** A scaffolder + CLI +
+library to build apps where AI agents pay sub-cent USDC on [Arc](https://www.arc.io) (Circle's
+stablecoin-native EVM L1) — wallets, x402 paywalls, Gateway nanopayment batching, cross-chain
+withdrawal (CCTP), and a spend-guard safety kernel, wired for you.
 
-<!-- badges: enable after the repo + CI exist -->
-<!-- [![CI](https://github.com/gnanam1990/arcpayments/actions/workflows/ci.yml/badge.svg)](https://github.com/gnanam1990/arcpayments/actions/workflows/ci.yml) -->
-<!-- ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg) -->
+[![CI](https://github.com/gnanam1990/arcpayments/actions/workflows/ci.yml/badge.svg)](https://github.com/gnanam1990/arcpayments/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-> ⚠️ **Testnet.** Targets Arc public testnet; all USDC is test-value. Not affiliated with Circle/Arc —
-> a community project *for* the Arc ecosystem.
+> ⚠️ **Testnet.** Targets the Arc **public testnet**; all USDC is test-value. This is a **community
+> project** for the Arc ecosystem — **not affiliated with, or endorsed by, Circle or Arc.**
 
 ## Why
 Every builder re-wires the same agentic-commerce plumbing on Arc by hand. `arcpayments` is the
@@ -17,11 +17,17 @@ Every builder re-wires the same agentic-commerce plumbing on Arc by hand. `arcpa
 
 ## Quickstart
 ```bash
-# (available after Stage 8 publish)
-npx arcpayments create my-app
+npx arcpayments create my-app     # scaffold a metered-MCP starter (server + buyer agent)
 cd my-app
-arcpayments doctor      # checks RPC, chain ID, wallet, faucet balance
+npm install
+npx arcpayments wallet:new        # buyer + seller keys into a gitignored .env
+npx arcpayments faucet            # get testnet USDC
+npx arcpayments doctor            # checks RPC, chain ID, wallet, faucet balance
+npm start                         # run the metered MCP server
 ```
+
+New here? See [`docs/RELEASE.md`](docs/RELEASE.md) for the publish process and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) to help out.
 
 ## Safety
 

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isAddress } from "viem";
 import { describe, expect, it } from "vitest";
 import {
   APP_NAME_TOKEN,
@@ -78,6 +79,18 @@ describe("runCreate — file tree", () => {
     const { written } = generate("my-app");
     for (const [path, contents] of written) {
       expect(contents, `${path} still has a token`).not.toContain(APP_NAME_TOKEN);
+    }
+  });
+
+  it("every address literal in the emitted templates is a VALID address (isAddress)", () => {
+    // Guards against the class of bug where a template ships an invalid/bad-checksum
+    // address, so the generated app's own tests throw at isAddress()/getAddress().
+    const { written } = generate("my-app");
+    const ADDRESS_RE = /0x[a-fA-F0-9]{40}(?![a-fA-F0-9])/g;
+    for (const [path, contents] of written) {
+      for (const match of contents.match(ADDRESS_RE) ?? []) {
+        expect(isAddress(match), `${path}: "${match}" is not a valid address`).toBe(true);
+      }
     }
   });
 

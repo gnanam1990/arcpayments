@@ -135,6 +135,31 @@ export interface SpendGuardConfig {
   humanGateThreshold?: bigint;
 }
 
+/** Rate-limit usage at a point in time. */
+export interface RateSnapshot {
+  max: number;
+  windowMs: number;
+  /** Payments counted in the current trailing window. */
+  used: number;
+  /** Remaining payments allowed before the limiter denies (`max − used`, ≥ 0). */
+  headroom: number;
+}
+
+/**
+ * A **read-only** view of the enforced guard state — for observability (e.g. the
+ * seller dashboard). Never exposes a way to mutate limits or counters.
+ */
+export interface SpendGuardSnapshot {
+  /** Cumulative recorded spend (base units). */
+  spent: bigint;
+  budgetCap?: bigint;
+  perPaymentMax?: bigint;
+  humanGateThreshold?: bigint;
+  rate?: RateSnapshot;
+  /** Normalized allowlisted recipient addresses (frozen). */
+  allowlist?: readonly string[];
+}
+
 export interface SpendGuardDeps {
   /** Wall-clock in ms; injected for deterministic rate-limit tests. */
   now?: () => number;
@@ -253,6 +278,32 @@ export class SpendGuard {
   record(intent: PaymentIntent): void {
     this.#spent += intent.amount;
     this.#timestamps.push(this.#now());
+  }
+
+  /**
+   * A **read-only** snapshot of the enforced state — cumulative spend, the frozen
+   * limits, and current rate-window usage. For observability only (e.g. the seller
+   * dashboard's safety panel); it copies primitives and never exposes a mutator.
+   */
+  snapshot(): SpendGuardSnapshot {
+    const snapshot: SpendGuardSnapshot = { spent: this.#spent };
+    if (this.#config.budgetCap !== undefined) snapshot.budgetCap = this.#config.budgetCap;
+    if (this.#config.perPaymentMax !== undefined)
+      snapshot.perPaymentMax = this.#config.perPaymentMax;
+    if (this.#config.humanGateThreshold !== undefined)
+      snapshot.humanGateThreshold = this.#config.humanGateThreshold;
+    if (this.#config.rate) {
+      const cutoff = this.#now() - this.#config.rate.windowMs;
+      const used = this.#timestamps.reduce((n, t) => (t > cutoff ? n + 1 : n), 0);
+      snapshot.rate = {
+        max: this.#config.rate.max,
+        windowMs: this.#config.rate.windowMs,
+        used,
+        headroom: Math.max(0, this.#config.rate.max - used),
+      };
+    }
+    if (this.#config.allowlist) snapshot.allowlist = this.#config.allowlist;
+    return snapshot;
   }
 
   #deny(deny: GuardDeny, intent: PaymentIntent): GuardDeny {

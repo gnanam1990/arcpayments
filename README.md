@@ -48,6 +48,19 @@ await startPaymentLoop({ transport, wallet, nonce, maxCalls, maxTotalSpend, guar
 // guard.authorize() runs on every payment BEFORE signing — no bypass.
 ```
 
+## Seller dashboard
+
+A read-only live dashboard for the seller — real-time payments, Gateway balance, honest settlement
+status (accepted off-chain vs on-chain-completed kept distinct; the ~10-min cadence stated plainly),
+and the Stage 6 safety-guard state. Dark + violet, built in the existing Bun/tsup stack (no second
+framework). **No private key or signing in the browser** — the server reads public data + balances.
+
+```bash
+# runs the MCP server + dashboard on one shared queue, so real paid calls stream into the feed
+SELLER_PRIVATE_KEY=0x… DASHBOARD_PORT=4020 bun run --filter metered-mcp dashboard
+# open http://127.0.0.1:4020
+```
+
 ## Repo layout
 ```
 packages/arcpayments/   # the tool — CLI + libs

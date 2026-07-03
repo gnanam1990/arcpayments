@@ -192,7 +192,9 @@ export {
   loadSpendGuardConfig,
   normalizeAddress,
   type PaymentIntent,
+  type RateSnapshot,
   SpendGuard,
   type SpendGuardConfig,
   type SpendGuardDeps,
+  type SpendGuardSnapshot,
 } from "./spend-guard";

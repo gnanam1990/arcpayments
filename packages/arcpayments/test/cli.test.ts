@@ -8,6 +8,7 @@ describe("arcpayments --help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Usage");
     expect(result.stdout).toContain("arcpayments");
+    expect(result.stdout).toContain("create");
     expect(result.stdout).toContain("doctor");
     expect(result.stdout).toContain("wallet:new");
     expect(result.stdout).toContain("faucet");

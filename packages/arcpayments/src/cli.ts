@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Address, Hex } from "viem";
 import { formatCctpReport, runCctpTransfer } from "./cctp";
+import { runCreate, starterTemplatesDir } from "./create";
 import { formatDoctorReport, runDoctorFromEnv } from "./doctor";
 import { faucetCheck, formatFaucetInstructions } from "./faucet";
 import { formatGatewayBalances, runGatewayBalance } from "./gateway-balance";
@@ -37,6 +38,7 @@ Usage:
   arcpayments <command> [options]
 
 Commands:
+  create <name> [--force]   Scaffold a working metered-MCP starter (testnet-wired)
   doctor                    Diagnose your Arc setup (runtime, RPC, chain ID, wallet)
   wallet:new [--force]      Generate buyer + seller keys into a gitignored .env
   faucet [--check <addr>]   Print faucet URL + addresses, or check a balance
@@ -71,6 +73,10 @@ export async function run(argv: string[], env: NetworkEnv = process.env): Promis
 
   if (command === "--version" || command === "-v") {
     return { code: 0, stdout: `${VERSION}\n`, stderr: "" };
+  }
+
+  if (command === "create") {
+    return create(rest);
   }
 
   if (command === "doctor") {
@@ -132,6 +138,47 @@ function positionals(argv: string[], valueFlags: string[]): string[] {
     out.push(arg);
   }
   return out;
+}
+
+/** `arcpayments create <name> [--force]` — scaffold a testnet-wired starter project. */
+function create(argv: string[]): CliResult {
+  const name = positionals(argv, [])[0];
+  if (!name) {
+    return {
+      code: 1,
+      stdout: "",
+      stderr: "create requires a <name>, e.g. `arcpayments create my-app`\n",
+    };
+  }
+  const targetDir = join(process.cwd(), name);
+  const templatesDir = starterTemplatesDir();
+  const result = runCreate({
+    appName: name,
+    targetDir,
+    force: argv.includes("--force"),
+    readTemplate: (rel) => readFileSync(join(templatesDir, rel), "utf8"),
+    targetIsEmpty: (dir) => !existsSync(dir) || readdirSync(dir).length === 0,
+    writeFile: (path, contents) => {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, contents);
+    },
+  });
+  if (!result.ok) {
+    return { code: 1, stdout: "", stderr: `${result.error}\n` };
+  }
+  const next = [
+    `Created ${name}/ (${result.files.length} files) — a metered MCP server + buyer agent on Arc testnet.`,
+    "",
+    "Next:",
+    `  cd ${name}`,
+    "  npm install",
+    "  npx arcpayments wallet:new   # buyer + seller keys into a gitignored .env",
+    "  npx arcpayments faucet       # get testnet USDC",
+    "  npm run doctor               # verify your setup",
+    "  npm start                    # run the metered MCP server",
+    "",
+  ].join("\n");
+  return { code: 0, stdout: next, stderr: "" };
 }
 
 /** `arcpayments add paywall <name> [--price $x] [--out path] [--force]`. */

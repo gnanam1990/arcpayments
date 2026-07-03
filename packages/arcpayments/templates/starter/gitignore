@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# secrets — NEVER commit (testnet keys count too)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+*.log

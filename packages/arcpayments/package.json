@@ -27,7 +27,7 @@
     "url": "https://github.com/gnanam1990/arcpayments/issues"
   },
   "bin": {
-    "arcpayments": "./dist/bin.js"
+    "arcpayments": "dist/bin.js"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.js",

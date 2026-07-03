@@ -39,13 +39,7 @@
     },
     "./package.json": "./package.json"
   },
-  "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "templates",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist/**/*.js", "dist/**/*.d.ts", "templates", "README.md", "LICENSE"],
   "publishConfig": {
     "access": "public"
   },

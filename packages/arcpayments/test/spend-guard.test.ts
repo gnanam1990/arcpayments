@@ -133,6 +133,42 @@ describe("config immutability — the agent cannot rewrite its own limits", () =
   });
 });
 
+describe("snapshot — read-only observability for the dashboard", () => {
+  it("reflects spend, budget cap, rate window usage, and allowlist without exposing mutation", async () => {
+    let t = 0;
+    const g = new SpendGuard(
+      {
+        budgetCap: 5000n,
+        perPaymentMax: 2000n,
+        allowlist: [SELLER],
+        rate: { max: 3, windowMs: 1000 },
+      },
+      { now: () => t },
+    );
+    // two payments recorded in the window
+    g.record(intent(1000n));
+    g.record(intent(1000n));
+    const snap = g.snapshot();
+    expect(snap.spent).toBe(2000n);
+    expect(snap.budgetCap).toBe(5000n);
+    expect(snap.perPaymentMax).toBe(2000n);
+    expect(snap.allowlist).toEqual([normalizeAddress(SELLER)]);
+    expect(snap.rate).toEqual({ max: 3, windowMs: 1000, used: 2, headroom: 1 });
+
+    // window slides → usage drops back to zero headroom-full
+    t = 2000;
+    expect(g.snapshot().rate).toMatchObject({ used: 0, headroom: 3 });
+  });
+
+  it("omits unconfigured guards from the snapshot", () => {
+    const snap = new SpendGuard({ budgetCap: 1000n }).snapshot();
+    expect(snap.budgetCap).toBe(1000n);
+    expect(snap.rate).toBeUndefined();
+    expect(snap.allowlist).toBeUndefined();
+    expect(snap.perPaymentMax).toBeUndefined();
+  });
+});
+
 describe("GuardDeniedError", () => {
   it("carries the guard name + approval flag and a readable message", () => {
     const err = new GuardDeniedError({

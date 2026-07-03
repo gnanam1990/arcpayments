@@ -129,6 +129,11 @@ export {
   type WithdrawResult,
 } from "./withdraw";
 export {
+  runSellerCashout,
+  type SellerCashoutOptions,
+  type SellerCashoutResult,
+} from "./cashout";
+export {
   pollWithBackoff,
   type PollOptions,
   type PollOutcome,
